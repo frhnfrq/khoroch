@@ -87,11 +87,11 @@ export function TransactionRow({
             )}
           >
             {amountPrefix}
-            {formatMoney(transaction.amount)}
+            {formatMoney(transaction.amount, transaction.currency)}
           </p>
           {transaction.transferFee > 0 ? (
             <p className="text-[0.65rem] text-muted-foreground">
-              {formatMoney(transaction.transferFee)} fee
+              {formatMoney(transaction.transferFee, transaction.currency)} fee
             </p>
           ) : null}
         </div>

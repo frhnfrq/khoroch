@@ -18,7 +18,6 @@ import useSWR from "swr";
 
 import { CreateAccountDrawer } from "@/components/create-account-drawer";
 import { FinanceIcon } from "@/components/finance-icon";
-import { useFinanceSettings } from "@/hooks/use-finance-settings";
 import { formatMoney } from "@/lib/finance/format";
 import type { AccountWithBalance } from "@/lib/finance/types";
 
@@ -40,12 +39,18 @@ const accountTypeLabels: Record<AccountWithBalance["type"], string> = {
 };
 
 export default function AccountsPage() {
-  const { defaultCurrency } = useFinanceSettings();
   const { data, error, isLoading, mutate } = useSWR<{ accounts: AccountWithBalance[] }>(
     "/api/accounts",
   );
   const accounts = data?.accounts.filter((account) => !account.isArchived) ?? [];
-  const total = accounts.reduce((sum, account) => sum + account.balance, 0);
+  const totalsByCurrency = [...new Set(accounts.map((account) => account.currency))].map(
+    (currency) => ({
+      currency,
+      amount: accounts
+        .filter((account) => account.currency === currency)
+        .reduce((sum, account) => sum + account.balance, 0),
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,9 +104,13 @@ export default function AccountsPage() {
             <p className="text-xs text-primary-foreground/70">
               Total across {accounts.length} accounts
             </p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              {formatMoney(total, defaultCurrency)}
-            </p>
+            <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
+              {totalsByCurrency.map((total) => (
+                <p key={total.currency} className="text-3xl font-semibold tracking-tight">
+                  {formatMoney(total.amount, total.currency)}
+                </p>
+              ))}
+            </div>
           </section>
 
           <section>

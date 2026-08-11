@@ -122,7 +122,7 @@ export function SearchPicker({
         <DrawerHeader>
           <DrawerTitle>{title}</DrawerTitle>
           <DrawerDescription>
-            {description ?? `Search and choose ${title.toLowerCase()}.`}
+            {description ?? "Search and select one of the available options."}
           </DrawerDescription>
         </DrawerHeader>
 

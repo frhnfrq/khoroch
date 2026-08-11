@@ -106,6 +106,7 @@ export const createTransactionSchema = z
       .object({
         name: z.string().trim().min(1).max(100),
         type: z.enum(fundingBucketTypes),
+        currency: z.enum(supportedCurrencies).default("BDT"),
         periodStart: z.iso
           .date()
           .nullish()
@@ -199,6 +200,7 @@ export const createFundingBucketSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
     type: z.enum(fundingBucketTypes),
+    currency: z.enum(supportedCurrencies).default("BDT"),
     periodStart: z.iso
       .date()
       .nullish()

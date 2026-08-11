@@ -24,7 +24,7 @@ import { FinanceIcon } from "@/components/finance-icon";
 import { SearchPicker } from "@/components/search-picker";
 import { apiFetch } from "@/lib/client-api";
 import { getCategoryPath } from "@/lib/finance/category-tree";
-import { currencyOptions } from "@/lib/finance/currencies";
+import { currencyOptions, getCurrencyPrefix } from "@/lib/finance/currencies";
 import type { FinanceSettings } from "@/lib/finance/types";
 
 export default function SettingsPage() {
@@ -141,7 +141,10 @@ export default function SettingsPage() {
                   value={defaultCurrency}
                   onValueChange={setDefaultCurrency}
                 />
-                <FieldDescription>Default: BDT (৳).</FieldDescription>
+                <FieldDescription>
+                  New accounts and budgets will use {defaultCurrency} (
+                  {getCurrencyPrefix(defaultCurrency)}).
+                </FieldDescription>
               </Field>
               {saveError ? (
                 <p className="text-xs text-destructive" role="alert" aria-live="polite">

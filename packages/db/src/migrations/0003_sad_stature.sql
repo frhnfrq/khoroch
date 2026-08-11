@@ -1,0 +1,1 @@
+ALTER TABLE "funding_buckets" ADD COLUMN "currency" text DEFAULT 'BDT' NOT NULL;

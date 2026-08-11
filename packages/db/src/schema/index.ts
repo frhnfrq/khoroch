@@ -126,6 +126,7 @@ export const fundingBuckets = pgTable(
     userId: text("user_id").notNull(),
     name: text("name").notNull(),
     type: fundingBucketTypeEnum("type").notNull().default("other"),
+    currency: text("currency").notNull().default("BDT"),
     periodStart: date("period_start", { mode: "string" }),
     periodEnd: date("period_end", { mode: "string" }),
     isArchived: boolean("is_archived").notNull().default(false),

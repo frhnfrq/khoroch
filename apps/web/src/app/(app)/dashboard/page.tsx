@@ -103,13 +103,29 @@ export default function DashboardPage() {
     .filter((bucket) => !bucket.isArchived)
     .reverse()
     .slice(0, 5);
-  const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
-  const income = transactions
-    .filter((transaction) => transaction.type === "income")
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const expenses = transactions
-    .filter((transaction) => transaction.type === "expense")
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const accountTotals = [...new Set(accounts.map((account) => account.currency))].map(
+    (currency) => ({
+      currency,
+      amount: accounts
+        .filter((account) => account.currency === currency)
+        .reduce((sum, account) => sum + account.balance, 0),
+    }),
+  );
+  const formatTransactionTotals = (type: TransactionView["type"]) => {
+    const matching = transactions.filter((transaction) => transaction.type === type);
+    const currencies = [...new Set(matching.map((transaction) => transaction.currency))];
+    if (currencies.length === 0) return formatCompactMoney(0, defaultCurrency);
+    return currencies
+      .map((currency) =>
+        formatCompactMoney(
+          matching
+            .filter((transaction) => transaction.currency === currency)
+            .reduce((sum, transaction) => sum + transaction.amount, 0),
+          currency,
+        ),
+      )
+      .join(" · ");
+  };
 
   if (accountsLoading || transactionsLoading || budgetsLoading || fundingLoading) {
     return <DashboardSkeleton />;
@@ -153,7 +169,11 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-1">
               <p className="text-xs text-primary-foreground/70">Across all accounts</p>
               <p className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                {formatMoney(totalBalance, defaultCurrency)}
+                {accountTotals.length > 0
+                  ? accountTotals
+                      .map((total) => formatMoney(total.amount, total.currency))
+                      .join(" · ")
+                  : formatMoney(0, defaultCurrency)}
               </p>
             </div>
             <Badge variant="secondary">Live balance</Badge>
@@ -165,9 +185,7 @@ export default function DashboardPage() {
               </span>
               <div>
                 <p className="text-[0.65rem] text-primary-foreground/70">Income this month</p>
-                <p className="text-sm font-semibold">
-                  {formatCompactMoney(income, defaultCurrency)}
-                </p>
+                <p className="text-sm font-semibold">{formatTransactionTotals("income")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -176,9 +194,7 @@ export default function DashboardPage() {
               </span>
               <div>
                 <p className="text-[0.65rem] text-primary-foreground/70">Spent this month</p>
-                <p className="text-sm font-semibold">
-                  {formatCompactMoney(expenses, defaultCurrency)}
-                </p>
+                <p className="text-sm font-semibold">{formatTransactionTotals("expense")}</p>
               </div>
             </div>
           </div>
@@ -324,12 +340,12 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Remaining</p>
                   <p className="text-xl font-semibold">
-                    {formatMoney(currentBudget.remainingAmount, defaultCurrency)}
+                    {formatMoney(currentBudget.remainingAmount, currentBudget.currency)}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCompactMoney(currentBudget.spentAmount, defaultCurrency)} of{" "}
-                  {formatCompactMoney(currentBudget.plannedAmount, defaultCurrency)}
+                  {formatCompactMoney(currentBudget.spentAmount, currentBudget.currency)} of{" "}
+                  {formatCompactMoney(currentBudget.plannedAmount, currentBudget.currency)}
                 </p>
               </div>
               <Progress
@@ -347,8 +363,8 @@ export default function DashboardPage() {
                     <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
                       <span className="truncate">{item.name}</span>
                       <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {formatCompactMoney(item.spentAmount, defaultCurrency)} /{" "}
-                        {formatCompactMoney(item.plannedAmount, defaultCurrency)}
+                        {formatCompactMoney(item.spentAmount, currentBudget.currency)} /{" "}
+                        {formatCompactMoney(item.plannedAmount, currentBudget.currency)}
                       </span>
                     </div>
                   ))}
@@ -401,14 +417,14 @@ export default function DashboardPage() {
                           <Badge variant="secondary">{fundingTypeLabels[bucket.type]}</Badge>
                         </div>
                         <p className="shrink-0 text-sm font-semibold tabular-nums">
-                          {formatMoney(bucket.remainingAmount, defaultCurrency)}
+                          {formatMoney(bucket.remainingAmount, bucket.currency)}
                         </p>
                       </div>
                       <div className="mt-1.5 flex items-center gap-3">
                         <Progress value={usedPercent} className="h-1.5 flex-1" />
                         <p className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
-                          {formatCompactMoney(bucket.spentAmount, defaultCurrency)} of{` `}
-                          {formatCompactMoney(bucket.fundedAmount, defaultCurrency)} used
+                          {formatCompactMoney(bucket.spentAmount, bucket.currency)} of{` `}
+                          {formatCompactMoney(bucket.fundedAmount, bucket.currency)} used
                         </p>
                       </div>
                     </div>

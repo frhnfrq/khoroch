@@ -148,9 +148,18 @@ export function AddTransactionDrawer({
       })),
     [accounts],
   );
+  const selectedAccount = accounts.find((account) => account.id === accountId) ?? null;
   const destinationItems = useMemo(
-    () => accountItems.filter((account) => account.value !== accountId),
-    [accountId, accountItems],
+    () =>
+      accountItems.filter((account) => {
+        if (account.value === accountId) return false;
+        if (!selectedAccount) return true;
+        return (
+          accounts.find((candidate) => candidate.id === account.value)?.currency ===
+          selectedAccount.currency
+        );
+      }),
+    [accountId, accountItems, accounts, selectedAccount],
   );
   const budgetItems = currentBudget?.items ?? [];
   const budgetSelectItems = useMemo(
@@ -160,23 +169,22 @@ export function AddTransactionDrawer({
         return {
           value: item.id,
           label: parent ? `${parent.name} / ${item.name}` : item.name,
-          description: `${formatMoney(item.remainingAmount, defaultCurrency)} remaining`,
+          description: `${formatMoney(item.remainingAmount, currentBudget?.currency ?? defaultCurrency)} remaining`,
           icon: item.category?.icon ?? undefined,
         };
       }),
-    [budgetItems, defaultCurrency],
+    [budgetItems, currentBudget?.currency, defaultCurrency],
   );
   const fundingSelectItems = useMemo(
     () =>
       fundingBuckets.map((bucket) => ({
         value: bucket.id,
         label: bucket.name,
-        description: `${formatMoney(bucket.remainingAmount, defaultCurrency)} remaining`,
+        description: `${formatMoney(bucket.remainingAmount, bucket.currency)} remaining`,
         keywords: bucket.type,
       })),
-    [defaultCurrency, fundingBuckets],
+    [fundingBuckets],
   );
-  const selectedAccount = accounts.find((account) => account.id === accountId) ?? null;
   const activeCurrency = selectedAccount?.currency ?? defaultCurrency;
 
   function updateLine(id: string, changes: Partial<SplitLine>) {
@@ -247,7 +255,7 @@ export function AddTransactionDrawer({
                 amount: -principal,
                 categoryId: null,
                 budgetItemId: null,
-                fundingBucketId: fundingBucketId || null,
+                fundingBucketId: null,
                 memo: "Transfer out",
               },
               {
@@ -255,7 +263,7 @@ export function AddTransactionDrawer({
                 amount: principal,
                 categoryId: null,
                 budgetItemId: null,
-                fundingBucketId: fundingBucketId || null,
+                fundingBucketId: null,
                 memo: "Transfer in",
               },
               ...(fee > 0
@@ -299,7 +307,7 @@ export function AddTransactionDrawer({
                 categoryId: null,
                 budgetItemId: null,
                 fundingBucketId: null,
-                memo: `Reconciled from ${formatMoney(selectedAccount.balance)} to ${formatMoney(targetBalance)}`,
+                memo: `Reconciled from ${formatMoney(selectedAccount.balance, selectedAccount.currency)} to ${formatMoney(targetBalance, selectedAccount.currency)}`,
               },
             ],
           }),
@@ -356,6 +364,7 @@ export function AddTransactionDrawer({
                       : (fundingTypeByCategory[
                           selectedIncomeCategory?.name.toLowerCase() as keyof typeof fundingTypeByCategory
                         ] ?? "other"),
+                    currency: activeCurrency,
                     periodStart: occurredAt.slice(0, 7) + "-01",
                     periodEnd: null,
                   }
@@ -706,12 +715,18 @@ export function AddTransactionDrawer({
                 </>
               )}
 
-              {type !== "income" && type !== "adjustment" ? (
+              {type !== "income" &&
+              type !== "adjustment" &&
+              (type !== "transfer" || Number(transferFee) > 0) ? (
                 <Field>
-                  <FieldLabel>Funded by</FieldLabel>
+                  <FieldLabel>{type === "transfer" ? "Fee funded by" : "Funded by"}</FieldLabel>
                   <SearchPicker
                     title="Choose funding source"
-                    description="Link this activity to the salary or credit that funded it."
+                    description={
+                      type === "transfer"
+                        ? "Only the transfer fee is charged to this salary or credit."
+                        : "Link this activity to the salary or credit that funded it."
+                    }
                     placeholder="Optional income bucket"
                     searchPlaceholder="Search income buckets…"
                     emptyMessage="Record an income first to create a funding bucket."

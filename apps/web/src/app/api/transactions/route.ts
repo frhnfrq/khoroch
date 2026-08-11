@@ -3,6 +3,7 @@ import { db } from "@khoroch/db";
 import {
   accounts,
   budgetItems,
+  budgets,
   categories,
   fundingBuckets,
   transactionEntries,
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
         entry: transactionEntries,
         accountName: accounts.name,
         accountType: accounts.type,
+        accountCurrency: accounts.currency,
         categoryName: categories.name,
         categoryIcon: categories.icon,
         categoryColor: categories.color,
@@ -105,6 +107,7 @@ export async function GET(request: Request) {
         ...transaction,
         amount,
         transferFee: transaction.type === "transfer" ? getTransferFee(transactionEntriesForId) : 0,
+        currency: transactionEntriesForId[0]?.accountCurrency ?? "BDT",
         entries: transactionEntriesForId,
       });
 
@@ -136,7 +139,7 @@ export async function POST(request: Request) {
 
     const accountIds = [...new Set(input.entries.map((entry) => entry.accountId))];
     const ownedAccounts = await db
-      .select({ id: accounts.id })
+      .select({ id: accounts.id, currency: accounts.currency })
       .from(accounts)
       .where(
         and(
@@ -150,6 +153,27 @@ export async function POST(request: Request) {
     }
     if (input.type === "transfer" && accountIds.length < 2) {
       return Response.json({ error: "A transfer needs two different accounts" }, { status: 400 });
+    }
+    if (
+      input.type === "transfer" &&
+      new Set(ownedAccounts.map((account) => account.currency)).size > 1
+    ) {
+      return Response.json(
+        { error: "Transfers between different currencies need an exchange transaction" },
+        { status: 400 },
+      );
+    }
+    const accountCurrencyById = new Map(
+      ownedAccounts.map((account) => [account.id, account.currency]),
+    );
+    if (
+      input.createFundingBucket &&
+      ownedAccounts.some((account) => account.currency !== input.createFundingBucket?.currency)
+    ) {
+      return Response.json(
+        { error: "The new funding source currency does not match the selected account" },
+        { status: 400 },
+      );
     }
 
     const categoryIds = [
@@ -201,8 +225,13 @@ export async function POST(request: Request) {
     const budgetCategoryById = new Map<string, string | null>();
     if (budgetItemIds.length > 0) {
       const ownedBudgetItems = await db
-        .select({ id: budgetItems.id, categoryId: budgetItems.categoryId })
+        .select({
+          id: budgetItems.id,
+          categoryId: budgetItems.categoryId,
+          currency: budgets.currency,
+        })
         .from(budgetItems)
+        .innerJoin(budgets, eq(budgets.id, budgetItems.budgetId))
         .where(
           and(
             eq(budgetItems.userId, userId),
@@ -222,6 +251,13 @@ export async function POST(request: Request) {
       for (const item of ownedBudgetItems) budgetCategoryById.set(item.id, item.categoryId);
       for (const entry of input.entries) {
         if (!entry.budgetItemId) continue;
+        const budgetItem = ownedBudgetItems.find((item) => item.id === entry.budgetItemId);
+        if (budgetItem?.currency !== accountCurrencyById.get(entry.accountId)) {
+          return Response.json(
+            { error: "The budget currency does not match the selected account" },
+            { status: 400 },
+          );
+        }
         if (input.type === "transfer" && entry.amount >= 0) {
           return Response.json(
             { error: "Only a transfer fee can use a budget item" },
@@ -245,7 +281,7 @@ export async function POST(request: Request) {
     ];
     if (fundingBucketIds.length > 0) {
       const ownedFundingBuckets = await db
-        .select({ id: fundingBuckets.id })
+        .select({ id: fundingBuckets.id, currency: fundingBuckets.currency })
         .from(fundingBuckets)
         .where(
           and(
@@ -256,6 +292,21 @@ export async function POST(request: Request) {
         );
       if (ownedFundingBuckets.length !== fundingBucketIds.length) {
         return Response.json({ error: "One or more funding buckets are invalid" }, { status: 400 });
+      }
+      const fundingCurrencyById = new Map(
+        ownedFundingBuckets.map((bucket) => [bucket.id, bucket.currency]),
+      );
+      for (const entry of input.entries) {
+        if (!entry.fundingBucketId) continue;
+        if (
+          fundingCurrencyById.get(entry.fundingBucketId) !==
+          accountCurrencyById.get(entry.accountId)
+        ) {
+          return Response.json(
+            { error: "The funding source currency does not match the selected account" },
+            { status: 400 },
+          );
+        }
       }
     }
 

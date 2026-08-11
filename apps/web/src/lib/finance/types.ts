@@ -14,6 +14,7 @@ export type AccountWithBalance = Account & { balance: number };
 export type TransactionEntryView = TransactionEntry & {
   accountName: string;
   accountType: Account["type"];
+  accountCurrency: string;
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;
@@ -24,6 +25,7 @@ export type TransactionEntryView = TransactionEntry & {
 export type TransactionView = Transaction & {
   amount: number;
   transferFee: number;
+  currency: string;
   entries: TransactionEntryView[];
 };
 
