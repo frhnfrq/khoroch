@@ -1,25 +1,31 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import type { Metadata } from "next";
+import { shadcn } from "@clerk/ui/themes";
+import type { Metadata, Viewport } from "next";
 
 import "../index.css";
-import { Geist, Geist_Mono } from "next/font/google";
 
-import Header from "@/components/header";
+import { PwaRegistration } from "@/components/pwa-registration";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "khoroch",
-  description: "khoroch",
+  title: {
+    default: "Khoroch",
+    template: "%s · Khoroch",
+  },
+  description: "A calm, complete view of your accounts, spending, income, and budgets.",
+  applicationName: "Khoroch",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Khoroch",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#7252c7" },
+    { media: "(prefers-color-scheme: dark)", color: "#17131f" },
+  ],
 };
 
 export default function RootLayout({
@@ -29,13 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ClerkProvider>
+      <body suppressHydrationWarning>
+        <ClerkProvider appearance={{ theme: shadcn }} dynamic>
           <Providers>
-            <div className="grid grid-rows-[auto_1fr] h-svh">
-              <Header />
-              {children}
-            </div>
+            {children}
+            <PwaRegistration />
           </Providers>
         </ClerkProvider>
       </body>

@@ -1,5 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
+// Authorization stays beside the protected data in the signed-in layout and
+// every API route. The proxy only supplies Clerk's request context.
 export default clerkMiddleware();
 
 export const config = {

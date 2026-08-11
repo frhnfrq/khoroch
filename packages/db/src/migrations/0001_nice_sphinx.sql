@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "budgets_user_period_active_uidx" ON "budgets" USING btree ("user_id","period_start","period_end") WHERE "budgets"."deleted_at" is null;
