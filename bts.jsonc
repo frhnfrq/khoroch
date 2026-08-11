@@ -1,0 +1,28 @@
+// Better-T-Stack project metadata
+//
+// Keep this file to use the `add` command.
+// Add addons: pnpm dlx create-better-t-stack@latest add
+//
+// Docs: https://better-t-stack.dev/docs
+// Stack Builder: https://better-t-stack.dev/new
+
+{
+  "$schema": "https://r2.better-t-stack.dev/schema.json",
+  "version": "3.38.2",
+  "createdAt": "2026-08-11T07:31:06.960Z",
+  "reproducibleCommand": "pnpm create better-t-stack@latest khoroch --frontend next --backend self --runtime none --database postgres --orm drizzle --api none --auth clerk --payments none --addons oxlint pwa skills turborepo --examples none --db-setup none --web-deploy vercel --server-deploy none --git --package-manager pnpm --install",
+  "database": "postgres",
+  "orm": "drizzle",
+  "backend": "self",
+  "runtime": "none",
+  "frontend": ["next"],
+  "addons": ["oxlint", "pwa", "skills", "turborepo"],
+  "examples": [],
+  "auth": "clerk",
+  "payments": "none",
+  "packageManager": "pnpm",
+  "dbSetup": "none",
+  "api": "none",
+  "webDeploy": "vercel",
+  "serverDeploy": "none",
+}

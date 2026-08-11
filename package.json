@@ -1,0 +1,43 @@
+{
+  "name": "khoroch",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:web": "turbo run dev -F web",
+    "db:push": "turbo run db:push -F @khoroch/db",
+    "db:studio": "turbo run db:studio -F @khoroch/db",
+    "db:generate": "turbo run db:generate -F @khoroch/db",
+    "db:migrate": "turbo run db:migrate -F @khoroch/db",
+    "deploy:setup": "vercel link",
+    "dev:vercel": "vercel dev -L",
+    "env:preview": "tsx scripts/sync-vercel-env.ts preview",
+    "env:production": "tsx scripts/sync-vercel-env.ts production",
+    "deploy": "vercel deploy",
+    "deploy:prod": "vercel deploy --prod",
+    "deploy:check": "vercel deploy --dry",
+    "check": "oxlint && oxfmt --write"
+  },
+  "dependencies": {
+    "@khoroch/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@khoroch/config": "workspace:*",
+    "@types/node": "^22.20.1",
+    "oxfmt": "^0.61.0",
+    "oxlint": "^1.76.0",
+    "tsx": "^4.23.1",
+    "turbo": "^2.10.7",
+    "typescript": "catalog:",
+    "vercel": "^58.1.0"
+  },
+  "packageManager": "pnpm@10.26.2"
+}

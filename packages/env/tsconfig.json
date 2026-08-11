@@ -1,0 +1,3 @@
+{
+  "extends": "@khoroch/config/tsconfig.base.json"
+}
