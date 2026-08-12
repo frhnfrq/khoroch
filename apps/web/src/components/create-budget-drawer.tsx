@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import type { Category } from "@khoroch/db/schema";
 import { Button } from "@khoroch/ui/components/button";
 import {
@@ -15,18 +16,26 @@ import { Field, FieldGroup, FieldLabel } from "@khoroch/ui/components/field";
 import { Input } from "@khoroch/ui/components/input";
 import { Spinner } from "@khoroch/ui/components/spinner";
 import { PiggyBankIcon, PlusIcon } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 
 import { BudgetLineEditor } from "@/components/budget-line-editor";
+import { BudgetDraftStatus } from "@/components/budget-draft-status";
+import { useBudgetDraft } from "@/hooks/use-budget-draft";
 import { useFinanceSettings } from "@/hooks/use-finance-settings";
 import { apiFetch } from "@/lib/client-api";
 import {
   createBudgetLineDraft,
+  hasBudgetLineDraftData,
   type BudgetLineDraft,
   validateBudgetLineDrafts,
 } from "@/lib/finance/budget-draft";
+import {
+  budgetDraftStorageKey,
+  type CreateBudgetDraft,
+  type CreateBudgetDraftInput,
+} from "@/lib/finance/budget-draft-storage";
 
 function defaultMonth() {
   const now = new Date();
@@ -45,6 +54,7 @@ function monthDetails(month: string) {
 }
 
 export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string }) {
+  const { userId } = useAuth();
   const [open, setOpen] = useState(false);
   const [budgetMonth, setBudgetMonth] = useState(month);
   const [name, setName] = useState(() => monthDetails(month).name);
@@ -58,17 +68,39 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
     isLoading: categoriesLoading,
   } = useSWR<{ categories: Category[] }>(open ? "/api/categories" : null);
   const { defaultCurrency } = useFinanceSettings();
+  const isDirty =
+    budgetMonth !== month ||
+    name !== monthDetails(month).name ||
+    lines.length !== 1 ||
+    lines.some(hasBudgetLineDraftData);
+  const storageKey = userId ? budgetDraftStorageKey(userId, { kind: "create-budget" }) : null;
+  const draft = useMemo<CreateBudgetDraftInput>(
+    () => ({ kind: "create-budget", budgetMonth, name, lines }),
+    [budgetMonth, lines, name],
+  );
+  const restoreDraft = useCallback((storedDraft: CreateBudgetDraft) => {
+    setBudgetMonth(storedDraft.budgetMonth);
+    setName(storedDraft.name);
+    setLines(storedDraft.lines);
+    setSubmitError("");
+  }, []);
+  const {
+    clearDraft,
+    status: draftStatus,
+    updatedAt: draftUpdatedAt,
+    wasRestored,
+  } = useBudgetDraft<CreateBudgetDraft>({
+    storageKey,
+    kind: "create-budget",
+    draft,
+    isDirty,
+    onRestore: restoreDraft,
+  });
 
   const categories =
     categoryData?.categories.filter(
       (category) => category.kind === "expense" && !category.isArchived,
     ) ?? [];
-
-  useEffect(() => {
-    if (open) return;
-    setBudgetMonth(month);
-    setName(monthDetails(month).name);
-  }, [month, open]);
 
   function updateLine(clientId: string, changes: Partial<BudgetLineDraft>) {
     setLines((current) =>
@@ -102,10 +134,17 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
           items: validated.items,
         }),
       });
-      await mutate((key) => typeof key === "string" && key.startsWith("/api/budgets"));
-      toast.success("Monthly budget created.");
+      clearDraft();
+      setBudgetMonth(month);
+      setName(monthDetails(month).name);
       setLines([createBudgetLineDraft()]);
       setOpen(false);
+      toast.success("Monthly budget created.");
+      try {
+        await mutate((key) => typeof key === "string" && key.startsWith("/api/budgets"));
+      } catch {
+        toast.warning("Budget created, but the page could not refresh. Try again in a moment.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not create this budget.";
       setSubmitError(message);
@@ -115,11 +154,20 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
     }
   }
 
+  function discardDraft() {
+    clearDraft();
+    setBudgetMonth(month);
+    setName(monthDetails(month).name);
+    setLines([createBudgetLineDraft()]);
+    setSubmitError("");
+    toast.success("Unsaved budget draft discarded.");
+  }
+
   return (
     <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
       <DrawerTrigger render={<Button />}>
         <PlusIcon data-icon="inline-start" />
-        New budget
+        {isDirty ? "Continue draft" : "New budget"}
       </DrawerTrigger>
       <DrawerContent className="mx-auto max-w-2xl">
         <DrawerHeader>
@@ -211,6 +259,14 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
                 <p className="text-xs text-destructive" role="alert" aria-live="polite">
                   {submitError}
                 </p>
+              ) : null}
+              {isDirty ? (
+                <BudgetDraftStatus
+                  status={draftStatus}
+                  updatedAt={draftUpdatedAt}
+                  wasRestored={wasRestored}
+                  onDiscard={discardDraft}
+                />
               ) : null}
             </FieldGroup>
           </div>

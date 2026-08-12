@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import type { Category } from "@khoroch/db/schema";
 import {
   AlertDialog,
@@ -34,11 +35,13 @@ import { Input } from "@khoroch/ui/components/input";
 import { Spinner } from "@khoroch/ui/components/spinner";
 import { Switch } from "@khoroch/ui/components/switch";
 import { PencilIcon, PlusIcon, SaveIcon, Trash2Icon } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 
 import { BudgetLineEditor } from "@/components/budget-line-editor";
+import { BudgetDraftStatus } from "@/components/budget-draft-status";
+import { useBudgetDraft } from "@/hooks/use-budget-draft";
 import { apiFetch } from "@/lib/client-api";
 import {
   createBudgetLineDraft,
@@ -46,6 +49,11 @@ import {
   type BudgetLineDraft,
   validateBudgetLineDrafts,
 } from "@/lib/finance/budget-draft";
+import {
+  budgetDraftStorageKey,
+  type ManageBudgetDraft,
+  type ManageBudgetDraftInput,
+} from "@/lib/finance/budget-draft-storage";
 import type { BudgetView } from "@/lib/finance/types";
 
 function budgetToDraftLines(budget: BudgetView): BudgetLineDraft[] {
@@ -63,11 +71,13 @@ function budgetToDraftLines(budget: BudgetView): BudgetLineDraft[] {
 }
 
 export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
+  const { userId } = useAuth();
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [name, setName] = useState(budget.name);
   const [rollover, setRollover] = useState(budget.rollover);
   const [lines, setLines] = useState<BudgetLineDraft[]>(() => budgetToDraftLines(budget));
+  const [draftBaseVersion, setDraftBaseVersion] = useState(budget.version);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -81,17 +91,65 @@ export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
     categoryData?.categories.filter(
       (category) => category.kind === "expense" && !category.isArchived,
     ) ?? [];
+  const serverLines = useMemo(() => budgetToDraftLines(budget), [budget]);
+  const isDirty =
+    name !== budget.name ||
+    rollover !== budget.rollover ||
+    JSON.stringify(lines) !== JSON.stringify(serverLines);
+  const storageKey = userId
+    ? budgetDraftStorageKey(userId, { kind: "manage-budget", budgetId: budget.id })
+    : null;
+  const draft = useMemo<ManageBudgetDraftInput>(
+    () => ({
+      kind: "manage-budget",
+      budgetId: budget.id,
+      baseVersion: draftBaseVersion,
+      name,
+      rollover,
+      lines,
+    }),
+    [budget.id, draftBaseVersion, lines, name, rollover],
+  );
+  const restoreDraft = useCallback(
+    (storedDraft: ManageBudgetDraft) => {
+      if (storedDraft.budgetId !== budget.id) return;
+      setName(storedDraft.name);
+      setRollover(storedDraft.rollover);
+      setLines(storedDraft.lines);
+      setDraftBaseVersion(storedDraft.baseVersion);
+      setSubmitError("");
+    },
+    [budget.id],
+  );
+  const {
+    clearDraft,
+    status: draftStatus,
+    updatedAt: draftUpdatedAt,
+    wasRestored,
+  } = useBudgetDraft<ManageBudgetDraft>({
+    storageKey,
+    kind: "manage-budget",
+    draft,
+    isDirty,
+    onRestore: restoreDraft,
+  });
 
   function resetFromBudget() {
     setName(budget.name);
     setRollover(budget.rollover);
     setLines(budgetToDraftLines(budget));
+    setDraftBaseVersion(budget.version);
     setSubmitError("");
   }
 
   function changeOpen(nextOpen: boolean) {
-    if (nextOpen) resetFromBudget();
     setOpen(nextOpen);
+  }
+
+  function discardDraft() {
+    clearDraft();
+    resetFromBudget();
+    toast.success("Unsaved budget changes discarded.");
   }
 
   function updateLine(clientId: string, changes: Partial<BudgetLineDraft>) {
@@ -141,9 +199,14 @@ export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
           items: validated.items,
         }),
       });
-      await mutate((key) => typeof key === "string" && key.startsWith("/api/budgets"));
-      toast.success("Budget updated.");
+      clearDraft();
       setOpen(false);
+      toast.success("Budget updated.");
+      try {
+        await mutate((key) => typeof key === "string" && key.startsWith("/api/budgets"));
+      } catch {
+        toast.warning("Budget saved, but the page could not refresh. Try again in a moment.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update this budget.";
       setSubmitError(message);
@@ -160,13 +223,18 @@ export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
         method: "DELETE",
         body: JSON.stringify({ version: budget.version }),
       });
-      await Promise.all([
-        mutate((key) => typeof key === "string" && key.startsWith("/api/budgets")),
-        mutate((key) => typeof key === "string" && key.startsWith("/api/transactions")),
-      ]);
-      toast.success("Budget removed.");
+      clearDraft();
       setDeleteOpen(false);
       setOpen(false);
+      toast.success("Budget removed.");
+      try {
+        await Promise.all([
+          mutate((key) => typeof key === "string" && key.startsWith("/api/budgets")),
+          mutate((key) => typeof key === "string" && key.startsWith("/api/transactions")),
+        ]);
+      } catch {
+        toast.warning("Budget removed, but the page could not refresh. Try again in a moment.");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not remove this budget.");
     } finally {
@@ -178,7 +246,7 @@ export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
     <Drawer open={open} onOpenChange={changeOpen} showSwipeHandle>
       <DrawerTrigger render={<Button variant="outline" />}>
         <PencilIcon data-icon="inline-start" />
-        Manage budget
+        {isDirty ? "Continue editing" : "Manage budget"}
       </DrawerTrigger>
       <DrawerContent className="mx-auto max-w-2xl">
         <DrawerHeader>
@@ -266,6 +334,15 @@ export function ManageBudgetDrawer({ budget }: { budget: BudgetView }) {
               </div>
 
               {submitError ? <FieldError>{submitError}</FieldError> : null}
+              {isDirty ? (
+                <BudgetDraftStatus
+                  status={draftStatus}
+                  updatedAt={draftUpdatedAt}
+                  wasRestored={wasRestored}
+                  stale={draftBaseVersion !== budget.version}
+                  onDiscard={discardDraft}
+                />
+              ) : null}
             </FieldGroup>
           </div>
 

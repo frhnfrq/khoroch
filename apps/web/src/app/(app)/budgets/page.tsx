@@ -4,7 +4,6 @@ import { Badge } from "@khoroch/ui/components/badge";
 import { Button } from "@khoroch/ui/components/button";
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -20,6 +19,8 @@ import {
   ChevronRightIcon,
   CornerDownRightIcon,
   PiggyBankIcon,
+  RefreshCwIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
@@ -47,6 +48,8 @@ export default function BudgetsPage() {
     `/api/budgets?month=${month}`,
   );
   const budget = data?.budgets[0] ?? null;
+  const isInitialLoading = !data && isLoading;
+  const isInitialError = !data && error;
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,10 +60,10 @@ export default function BudgetsPage() {
             Plan once, then link every expense as it happens.
           </p>
         </div>
-        {isLoading || error ? null : budget ? (
-          <ManageBudgetDrawer budget={budget} />
+        {isInitialLoading || isInitialError ? null : budget ? (
+          <ManageBudgetDrawer key={`${budget.id}:${budget.version}`} budget={budget} />
         ) : (
-          <CreateBudgetDrawer month={month} />
+          <CreateBudgetDrawer key={month} month={month} />
         )}
       </div>
 
@@ -90,13 +93,34 @@ export default function BudgetsPage() {
         </Button>
       </div>
 
-      {isLoading ? (
+      {data && error ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3"
+          role="status"
+        >
+          <div className="flex items-center gap-2">
+            <Badge variant="destructive">
+              <TriangleAlertIcon data-icon="inline-start" />
+              Refresh failed
+            </Badge>
+            <p className="text-xs text-muted-foreground">
+              Your last loaded budget and any unsaved draft are still available.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void mutate()}>
+            <RefreshCwIcon data-icon="inline-start" />
+            Try again
+          </Button>
+        </div>
+      ) : null}
+
+      {isInitialLoading ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-36 w-full rounded-3xl" />
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
         </div>
-      ) : error ? (
+      ) : isInitialError ? (
         <Empty className="min-h-80">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -120,9 +144,6 @@ export default function BudgetsPage() {
               Create budget items such as rent, groceries, office, and travel.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
-            <CreateBudgetDrawer month={month} />
-          </EmptyContent>
         </Empty>
       ) : (
         <>

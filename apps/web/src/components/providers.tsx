@@ -13,7 +13,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         value={{
           fetcher: apiFetch,
           revalidateOnFocus: true,
-          shouldRetryOnError: false,
+          shouldRetryOnError: true,
+          errorRetryCount: 3,
+          errorRetryInterval: 3_000,
         }}
       >
         {children}

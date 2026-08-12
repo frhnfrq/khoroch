@@ -35,7 +35,7 @@ export function createBudgetLineDraft(): BudgetLineDraft {
   };
 }
 
-function hasDraftData(line: BudgetLineDraft) {
+export function hasBudgetLineDraftData(line: BudgetLineDraft) {
   return Boolean(
     line.name.trim() ||
     line.plannedAmount.trim() ||
@@ -50,7 +50,7 @@ export function validateBudgetLineDrafts(
   lines: BudgetLineDraft[],
   options: { allowEmpty?: boolean } = {},
 ): { items: BudgetLinePayload[]; error: null } | { items: null; error: string } {
-  const activeLines = lines.filter(hasDraftData);
+  const activeLines = lines.filter(hasBudgetLineDraftData);
   if (activeLines.length === 0) {
     if (options.allowEmpty) return { items: [], error: null };
     return { items: null, error: "Add at least one complete budget item." };
