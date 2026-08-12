@@ -31,6 +31,7 @@ import useSWR from "swr";
 import { DeleteTransactionButton } from "@/components/delete-transaction-button";
 import { MoneyInput } from "@/components/money-input";
 import { SearchPicker, type SearchPickerItem } from "@/components/search-picker";
+import { TransactionDetailsDrawer } from "@/components/transaction-details-drawer";
 import { TransactionRow } from "@/components/transaction-row";
 import { useFinanceSettings } from "@/hooks/use-finance-settings";
 import { getCategoryPath } from "@/lib/finance/category-tree";
@@ -332,7 +333,12 @@ export default function TransactionsPage() {
                   <div key={transaction.id}>
                     <TransactionRow
                       transaction={transaction}
-                      action={<DeleteTransactionButton transactionId={transaction.id} />}
+                      action={
+                        <div className="flex items-center">
+                          <TransactionDetailsDrawer transaction={transaction} />
+                          <DeleteTransactionButton transactionId={transaction.id} />
+                        </div>
+                      }
                     />
                     {index < group.length - 1 ? <Separator /> : null}
                   </div>

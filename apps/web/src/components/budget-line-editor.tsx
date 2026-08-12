@@ -11,17 +11,7 @@ import { SearchPicker, type SearchPickerItem } from "@/components/search-picker"
 import { SubItemPanel } from "@/components/sub-item-panel";
 import type { BudgetLineDraft } from "@/lib/finance/budget-draft";
 
-export function BudgetLineEditor({
-  line,
-  index,
-  currency,
-  categories,
-  categoriesLoading,
-  categoryError,
-  parentItems,
-  onChange,
-  onRemove,
-}: {
+type BudgetLineFieldsProps = {
   line: BudgetLineDraft;
   index: number;
   currency: string;
@@ -30,17 +20,22 @@ export function BudgetLineEditor({
   categoryError?: string;
   parentItems: SearchPickerItem[];
   onChange: (changes: Partial<BudgetLineDraft>) => void;
-  onRemove?: () => void;
-}) {
+};
+
+export function BudgetLineFields({
+  line,
+  index,
+  currency,
+  categories,
+  categoriesLoading,
+  categoryError,
+  parentItems,
+  onChange,
+}: BudgetLineFieldsProps) {
   const label = line.name.trim() || "Budget item";
 
   return (
-    <SubItemPanel
-      index={index}
-      label={label}
-      nested={Boolean(line.parentClientId)}
-      onRemove={onRemove}
-    >
+    <>
       <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
         <Field>
           <FieldLabel htmlFor={`budget-name-${line.clientId}`}>Name</FieldLabel>
@@ -135,6 +130,24 @@ export function BudgetLineEditor({
           </FieldDescription>
         </Field>
       ) : null}
+    </>
+  );
+}
+
+export function BudgetLineEditor({
+  onRemove,
+  ...props
+}: BudgetLineFieldsProps & { onRemove?: () => void }) {
+  const label = props.line.name.trim() || "Budget item";
+
+  return (
+    <SubItemPanel
+      index={props.index}
+      label={label}
+      nested={Boolean(props.line.parentClientId)}
+      onRemove={onRemove}
+    >
+      <BudgetLineFields {...props} />
     </SubItemPanel>
   );
 }

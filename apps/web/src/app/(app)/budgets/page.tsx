@@ -26,6 +26,8 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { CreateBudgetDrawer } from "@/components/create-budget-drawer";
+import { BudgetItemDetailsDrawer } from "@/components/budget-item-details-drawer";
+import { BudgetItemDrawer } from "@/components/budget-item-drawer";
 import { FinanceIcon } from "@/components/finance-icon";
 import { ManageBudgetDrawer } from "@/components/manage-budget-drawer";
 import { formatCompactMoney, formatMoney } from "@/lib/finance/format";
@@ -61,7 +63,10 @@ export default function BudgetsPage() {
           </p>
         </div>
         {isInitialLoading || isInitialError ? null : budget ? (
-          <ManageBudgetDrawer key={`${budget.id}:${budget.version}`} budget={budget} />
+          <div className="flex flex-wrap justify-end gap-2">
+            <BudgetItemDrawer key={`add:${budget.id}:${budget.version}`} budget={budget} />
+            <ManageBudgetDrawer key={`${budget.id}:${budget.version}`} budget={budget} />
+          </div>
         ) : (
           <CreateBudgetDrawer key={month} month={month} />
         )}
@@ -187,7 +192,7 @@ export default function BudgetsPage() {
                       <FinanceIcon name={item.category?.icon ?? "piggy-bank"} className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <p className="truncate text-sm font-medium">{item.name}</p>
                           {item.priorSpentAmount > 0 ? (
@@ -196,22 +201,23 @@ export default function BudgetsPage() {
                         </div>
                         <p
                           className={cn(
-                            "shrink-0 text-xs tabular-nums",
+                            "shrink-0 text-xs tabular-nums sm:text-right",
                             item.remainingAmount < 0 ? "text-destructive" : "text-muted-foreground",
                           )}
                         >
-                          {formatCompactMoney(item.spentAmount, budget.currency)} /{" "}
-                          {formatCompactMoney(item.plannedAmount, budget.currency)}
+                          {formatMoney(item.spentAmount, budget.currency)} /{" "}
+                          {formatMoney(item.plannedAmount, budget.currency)}
                         </p>
                       </div>
                       <Progress value={ratio} className="mt-2" />
                       {item.priorSpentAmount > 0 ? (
                         <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                          {formatCompactMoney(item.priorSpentAmount, budget.currency)} was spent
-                          before balance tracking began.
+                          {formatMoney(item.priorSpentAmount, budget.currency)} was spent before
+                          balance tracking began.
                         </p>
                       ) : null}
                     </div>
+                    <BudgetItemDetailsDrawer budget={budget} item={item} />
                   </div>
                   {index < budget.items.length - 1 ? <Separator /> : null}
                 </div>

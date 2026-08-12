@@ -94,6 +94,7 @@ export async function GET(request: Request) {
         ...row.item,
         directPlannedAmount: row.item.plannedAmount,
         directPriorSpentAmount: directPriorSpent,
+        directLedgerSpentAmount: directLedgerSpent,
         ledgerSpentAmount: directLedgerSpent,
         spentAmount: directLedgerSpent + directPriorSpent,
         remainingAmount: row.item.plannedAmount - directLedgerSpent - directPriorSpent,

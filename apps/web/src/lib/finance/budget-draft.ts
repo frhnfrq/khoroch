@@ -48,7 +48,7 @@ export function hasBudgetLineDraftData(line: BudgetLineDraft) {
 
 export function validateBudgetLineDrafts(
   lines: BudgetLineDraft[],
-  options: { allowEmpty?: boolean } = {},
+  options: { allowEmpty?: boolean; externalParentIds?: Iterable<string> } = {},
 ): { items: BudgetLinePayload[]; error: null } | { items: null; error: string } {
   const activeLines = lines.filter(hasBudgetLineDraftData);
   if (activeLines.length === 0) {
@@ -57,6 +57,7 @@ export function validateBudgetLineDrafts(
   }
 
   const clientIds = new Set(activeLines.map((line) => line.clientId));
+  const validParentIds = new Set([...clientIds, ...(options.externalParentIds ?? [])]);
   if (clientIds.size !== activeLines.length) {
     return { items: null, error: "Budget items contain a duplicate identifier. Reopen and retry." };
   }
@@ -89,7 +90,7 @@ export function validateBudgetLineDrafts(
       };
     }
 
-    if (line.parentClientId && !clientIds.has(line.parentClientId)) {
+    if (line.parentClientId && !validParentIds.has(line.parentClientId)) {
       return { items: null, error: `Choose a valid parent for “${line.name.trim()}”.` };
     }
     if (line.parentClientId === line.clientId) {

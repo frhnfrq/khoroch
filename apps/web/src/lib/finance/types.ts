@@ -33,6 +33,7 @@ export type TransactionView = Transaction & {
 export type BudgetItemView = BudgetItem & {
   directPlannedAmount: number;
   directPriorSpentAmount: number;
+  directLedgerSpentAmount: number;
   ledgerSpentAmount: number;
   spentAmount: number;
   remainingAmount: number;

@@ -23,6 +23,7 @@ import {
   PiggyBankIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import useSWR from "swr";
 
 import { BalanceVisibility } from "@/components/balance-visibility";
@@ -53,6 +54,54 @@ const fundingTypeLabels: Record<FundingBucketView["type"], string> = {
   loan: "Loan",
   other: "Income",
 };
+
+function OverviewAccountCard({
+  account,
+  tone,
+}: {
+  account: AccountWithBalance;
+  tone: (typeof accountTones)[number];
+}) {
+  const [isBalanceVisible, setIsBalanceVisible] = useState(false);
+  const formattedBalance = formatMoney(account.balance, account.currency);
+  const actionLabel = isBalanceVisible ? "Hide balance" : "Show balance";
+
+  return (
+    <button
+      type="button"
+      aria-label={
+        isBalanceVisible
+          ? `${account.name} balance: ${formattedBalance}. Click to hide.`
+          : `${account.name} balance is hidden. Click to show.`
+      }
+      aria-pressed={isBalanceVisible}
+      title={`${actionLabel} for ${account.name}`}
+      className="flex min-w-44 items-center gap-3 rounded-2xl border bg-background p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      onClick={() => setIsBalanceVisible((visible) => !visible)}
+    >
+      <span
+        aria-hidden="true"
+        className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", tone)}
+      >
+        <FinanceIcon name={account.icon} className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs text-muted-foreground">{account.name}</span>
+        <span className="block overflow-hidden rounded-sm">
+          <span
+            aria-hidden={!isBalanceVisible}
+            className={cn(
+              "block truncate text-sm font-semibold tabular-nums transition-[filter] duration-200 motion-reduce:transition-none",
+              !isBalanceVisible && "select-none blur-md",
+            )}
+          >
+            {formattedBalance}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
 
 function currentMonthRange() {
   const now = new Date();
@@ -241,25 +290,11 @@ export default function DashboardPage() {
           </div>
           <div className="scroll-fade-x flex gap-3 overflow-x-auto pb-1">
             {accounts.map((account, index) => (
-              <div
+              <OverviewAccountCard
                 key={account.id}
-                className="flex min-w-44 items-center gap-3 rounded-2xl border bg-background p-3"
-              >
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                    accountTones[index % accountTones.length],
-                  )}
-                >
-                  <FinanceIcon name={account.icon} className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-xs text-muted-foreground">{account.name}</p>
-                  <p className="truncate text-sm font-semibold tabular-nums">
-                    {formatMoney(account.balance, account.currency)}
-                  </p>
-                </div>
-              </div>
+                account={account}
+                tone={accountTones[index % accountTones.length] ?? accountTones[0]}
+              />
             ))}
           </div>
         </section>

@@ -42,6 +42,17 @@ export function TransactionRow({
     transaction.entries.flatMap((entry) => (entry.categoryName ? [entry.categoryName] : [])),
   );
   const accountNames = [...new Set(transaction.entries.map((entry) => entry.accountName))];
+  const accountSummary =
+    accountNames.length > 2
+      ? `${accountNames.length} accounts`
+      : accountNames.join(transaction.type === "transfer" ? " → " : " + ");
+  const categorySummary =
+    uniqueCategories.size > 1 ? `${uniqueCategories.size} categories` : [...uniqueCategories][0];
+  const rowDetails = [
+    accountSummary,
+    categorySummary,
+    compact ? null : dateFormatter.format(new Date(transaction.occurredAt)),
+  ].filter(Boolean);
   const amountPrefix =
     transaction.type === "expense"
       ? "−"
@@ -70,12 +81,7 @@ export function TransactionRow({
           {transaction.status === "pending" ? <Badge variant="secondary">Pending</Badge> : null}
           {transaction.isHistorical ? <Badge variant="secondary">Historical</Badge> : null}
         </div>
-        <p className="truncate text-xs text-muted-foreground">
-          {uniqueCategories.size > 1
-            ? `${uniqueCategories.size} splits`
-            : ([...uniqueCategories][0] ?? accountNames.join(" → "))}
-          {compact ? "" : ` · ${dateFormatter.format(new Date(transaction.occurredAt))}`}
-        </p>
+        <p className="truncate text-xs text-muted-foreground">{rowDetails.join(" · ")}</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

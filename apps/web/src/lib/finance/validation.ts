@@ -220,6 +220,25 @@ export const updateBudgetSchema = z.object({
   items: z.array(editableBudgetItemSchema).max(100),
 });
 
+const standaloneBudgetItemSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  plannedAmount: moneySchema.refine((value) => value >= 0, "Planned amount cannot be negative"),
+  priorSpentAmount: moneySchema
+    .refine((value) => value >= 0, "Prior spending cannot be negative")
+    .default(0),
+  categoryId: optionalIdSchema,
+  parentId: optionalIdSchema,
+});
+
+export const createBudgetItemSchema = standaloneBudgetItemSchema.extend({
+  budgetVersion: z.number().int().positive(),
+});
+
+export const updateBudgetItemSchema = standaloneBudgetItemSchema.extend({
+  budgetVersion: z.number().int().positive(),
+  version: z.number().int().positive(),
+});
+
 export const deleteBudgetSchema = z.object({
   version: z.number().int().positive(),
 });
@@ -251,3 +270,5 @@ export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
 export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
 export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;
+export type CreateBudgetItemInput = z.infer<typeof createBudgetItemSchema>;
+export type UpdateBudgetItemInput = z.infer<typeof updateBudgetItemSchema>;
