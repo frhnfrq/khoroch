@@ -4,8 +4,8 @@ import type { Metadata, Viewport } from "next";
 
 import "../index.css";
 
-import { PwaRegistration } from "@/components/pwa-registration";
 import Providers from "@/components/providers";
+import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup";
 
 export const metadata: Metadata = {
   title: {
@@ -39,7 +39,7 @@ export default function RootLayout({
         <ClerkProvider appearance={{ theme: shadcn }} dynamic>
           <Providers>
             {children}
-            <PwaRegistration />
+            <ServiceWorkerCleanup />
           </Providers>
         </ClerkProvider>
       </body>
