@@ -85,7 +85,9 @@ export function BudgetItemDetailsDrawer({
             <Badge variant={status.variant}>{status.label}</Badge>
           </div>
           <DrawerDescription>
-            Exact amounts, progress, hierarchy, category, and tracking details.
+            {children.length > 0
+              ? "Totals include sub-items. The item amounts below exclude them."
+              : "Exact amounts, progress, category, and tracking details."}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -118,19 +120,19 @@ export function BudgetItemDetailsDrawer({
             <DetailRow label="Category" value={item.category?.name ?? "Uncategorized"} />
             <DetailRow label="Parent item" value={parent?.name ?? "Top level"} />
             <DetailRow
-              label="Direct planned"
+              label="Planned for this item"
               value={formatMoney(item.directPlannedAmount, budget.currency)}
             />
             <DetailRow
-              label="Direct ledger spending"
+              label="Spending from activity"
               value={formatMoney(item.directLedgerSpentAmount, budget.currency)}
             />
             <DetailRow
-              label="Direct prior spending"
+              label="Spent before tracking"
               value={formatMoney(item.directPriorSpentAmount, budget.currency)}
             />
             <DetailRow
-              label="Direct remaining"
+              label="Remaining for this item"
               value={formatMoney(item.directPlannedAmount - directSpentAmount, budget.currency)}
             />
             {children.length > 0 ? (
