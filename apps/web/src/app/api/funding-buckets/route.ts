@@ -17,6 +17,7 @@ export async function GET() {
         case
           when ${transactions.status} <> 'void'
             and ${transactions.deletedAt} is null
+            and ${transactionEntries.affectsBalance} = true
             and ${transactionEntries.amount} > 0
           then ${transactionEntries.amount}
           else 0
@@ -26,6 +27,7 @@ export async function GET() {
         case
           when ${transactions.status} <> 'void'
             and ${transactions.deletedAt} is null
+            and ${transactionEntries.affectsBalance} = true
             and ${transactionEntries.amount} < 0
           then ${transactionEntries.amount}
           else 0

@@ -16,6 +16,7 @@ import { cn } from "@khoroch/ui/lib/utils";
 import { LandmarkIcon } from "lucide-react";
 import useSWR from "swr";
 
+import { BalanceVisibility } from "@/components/balance-visibility";
 import { CreateAccountDrawer } from "@/components/create-account-drawer";
 import { FinanceIcon } from "@/components/finance-icon";
 import { formatMoney } from "@/lib/finance/format";
@@ -37,6 +38,11 @@ const accountTypeLabels: Record<AccountWithBalance["type"], string> = {
   credit_card: "Credit card",
   other: "Other",
 };
+
+const balanceTrackingFormatter = new Intl.DateTimeFormat("en-BD", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 export default function AccountsPage() {
   const { data, error, isLoading, mutate } = useSWR<{ accounts: AccountWithBalance[] }>(
@@ -104,13 +110,15 @@ export default function AccountsPage() {
             <p className="text-xs text-primary-foreground/70">
               Total across {accounts.length} accounts
             </p>
-            <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
-              {totalsByCurrency.map((total) => (
-                <p key={total.currency} className="text-3xl font-semibold tracking-tight">
-                  {formatMoney(total.amount, total.currency)}
-                </p>
-              ))}
-            </div>
+            <BalanceVisibility className="mt-1">
+              <div className="flex flex-wrap gap-x-5 gap-y-1">
+                {totalsByCurrency.map((total) => (
+                  <p key={total.currency} className="text-3xl font-semibold tracking-tight">
+                    {formatMoney(total.amount, total.currency)}
+                  </p>
+                ))}
+              </div>
+            </BalanceVisibility>
           </section>
 
           <section>
@@ -131,7 +139,11 @@ export default function AccountsPage() {
                       <Badge variant="secondary">{accountTypeLabels[account.type]}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Opening balance {formatMoney(account.openingBalance, account.currency)}
+                      Opening balance {formatMoney(account.openingBalance, account.currency)} ·
+                      tracking since{" "}
+                      {balanceTrackingFormatter.format(
+                        new Date(account.openingBalanceAt as Date | string),
+                      )}
                     </p>
                   </div>
                   <p className="shrink-0 text-base font-semibold tabular-nums">

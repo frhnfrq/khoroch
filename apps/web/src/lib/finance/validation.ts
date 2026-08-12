@@ -170,6 +170,9 @@ export const transactionFiltersSchema = z.object({
 const budgetItemInputSchema = z.object({
   name: z.string().trim().min(1).max(100),
   plannedAmount: moneySchema.refine((value) => value >= 0, "Planned amount cannot be negative"),
+  priorSpentAmount: moneySchema
+    .refine((value) => value >= 0, "Prior spending cannot be negative")
+    .default(0),
   categoryId: optionalIdSchema,
   parentClientId: z
     .string()
@@ -194,6 +197,32 @@ export const createBudgetSchema = z
     path: ["periodEnd"],
     message: "Budget end date must be after its start date",
   });
+
+const editableBudgetItemSchema = budgetItemInputSchema
+  .extend({
+    id: z.uuid().nullish(),
+    version: z.number().int().positive().nullish(),
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.id) !== Boolean(value.version)) {
+      context.addIssue({
+        code: "custom",
+        path: [value.id ? "version" : "id"],
+        message: "Existing budget items require both an id and version",
+      });
+    }
+  });
+
+export const updateBudgetSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  rollover: z.boolean(),
+  version: z.number().int().positive(),
+  items: z.array(editableBudgetItemSchema).max(100),
+});
+
+export const deleteBudgetSchema = z.object({
+  version: z.number().int().positive(),
+});
 
 export const createFundingBucketSchema = z
   .object({
@@ -221,3 +250,4 @@ export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
 export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
+export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;

@@ -88,11 +88,15 @@ export async function GET(request: Request) {
     const itemsByBudget = new Map<string, BudgetItemView[]>();
     for (const row of itemRows) {
       const items = itemsByBudget.get(row.item.budgetId) ?? [];
-      const directSpent = Math.max(0, Number(row.directSpent));
+      const directLedgerSpent = Math.max(0, Number(row.directSpent));
+      const directPriorSpent = Number(row.item.priorSpentAmount);
       items.push({
         ...row.item,
-        spentAmount: directSpent,
-        remainingAmount: row.item.plannedAmount - directSpent,
+        directPlannedAmount: row.item.plannedAmount,
+        directPriorSpentAmount: directPriorSpent,
+        ledgerSpentAmount: directLedgerSpent,
+        spentAmount: directLedgerSpent + directPriorSpent,
+        remainingAmount: row.item.plannedAmount - directLedgerSpent - directPriorSpent,
         category: row.categoryId
           ? {
               id: row.categoryId,
@@ -121,12 +125,22 @@ export async function GET(request: Request) {
         const childItems = children.get(item.id) ?? [];
         const rolledChildren = childItems.map((child) => rollup(child, nextVisited));
         const childSpent = rolledChildren.reduce((sum, child) => sum + child.spentAmount, 0);
+        const childLedgerSpent = rolledChildren.reduce(
+          (sum, child) => sum + child.ledgerSpentAmount,
+          0,
+        );
+        const childPriorSpent = rolledChildren.reduce(
+          (sum, child) => sum + child.priorSpentAmount,
+          0,
+        );
         const childPlanned = rolledChildren.reduce((sum, child) => sum + child.plannedAmount, 0);
         const plannedAmount = Math.max(item.plannedAmount, childPlanned);
         const spentAmount = item.spentAmount + childSpent;
         return {
           ...item,
           plannedAmount,
+          priorSpentAmount: item.directPriorSpentAmount + childPriorSpent,
+          ledgerSpentAmount: item.ledgerSpentAmount + childLedgerSpent,
           spentAmount,
           remainingAmount: plannedAmount - spentAmount,
         };
@@ -159,6 +173,20 @@ export async function POST(request: Request) {
 
   try {
     const input = createBudgetSchema.parse(await readJson(request));
+    const clientIds = input.items.map((item) => item.clientId);
+    if (new Set(clientIds).size !== clientIds.length) {
+      throw new ApiInputError("Budget items contain duplicate identifiers");
+    }
+    const clientIdSet = new Set(clientIds);
+    for (const item of input.items) {
+      if (item.parentClientId && !clientIdSet.has(item.parentClientId)) {
+        throw new ApiInputError(`“${item.name}” uses an invalid parent item`);
+      }
+      if (item.parentClientId === item.clientId) {
+        throw new ApiInputError(`“${item.name}” cannot be its own parent`);
+      }
+    }
+
     const existingBudget = await db.query.budgets.findFirst({
       columns: { id: true },
       where: and(
@@ -230,6 +258,7 @@ export async function POST(request: Request) {
                 : null,
               name: item.name,
               plannedAmount: item.plannedAmount,
+              priorSpentAmount: item.priorSpentAmount,
               sortOrder: sortOrder++,
             })),
           )

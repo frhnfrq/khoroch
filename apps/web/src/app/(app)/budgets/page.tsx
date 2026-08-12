@@ -26,6 +26,7 @@ import useSWR from "swr";
 
 import { CreateBudgetDrawer } from "@/components/create-budget-drawer";
 import { FinanceIcon } from "@/components/finance-icon";
+import { ManageBudgetDrawer } from "@/components/manage-budget-drawer";
 import { formatCompactMoney, formatMoney } from "@/lib/finance/format";
 import type { BudgetView } from "@/lib/finance/types";
 
@@ -56,7 +57,11 @@ export default function BudgetsPage() {
             Plan once, then link every expense as it happens.
           </p>
         </div>
-        <CreateBudgetDrawer month={month} />
+        {isLoading || error ? null : budget ? (
+          <ManageBudgetDrawer budget={budget} />
+        ) : (
+          <CreateBudgetDrawer month={month} />
+        )}
       </div>
 
       <div className="flex items-center justify-center gap-2">
@@ -162,7 +167,12 @@ export default function BudgetsPage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-sm font-medium">{item.name}</p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-medium">{item.name}</p>
+                          {item.priorSpentAmount > 0 ? (
+                            <Badge variant="secondary">Prior spending</Badge>
+                          ) : null}
+                        </div>
                         <p
                           className={cn(
                             "shrink-0 text-xs tabular-nums",
@@ -174,6 +184,12 @@ export default function BudgetsPage() {
                         </p>
                       </div>
                       <Progress value={ratio} className="mt-2" />
+                      {item.priorSpentAmount > 0 ? (
+                        <p className="mt-1 text-[0.65rem] text-muted-foreground">
+                          {formatCompactMoney(item.priorSpentAmount, budget.currency)} was spent
+                          before balance tracking began.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   {index < budget.items.length - 1 ? <Separator /> : null}

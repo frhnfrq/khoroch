@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { BalanceVisibility } from "@/components/balance-visibility";
+
 import { ModeToggle } from "@/components/mode-toggle";
 
 const features = [
@@ -115,7 +117,9 @@ export default function HomePage() {
           <div className="flex items-center justify-between px-5 py-4">
             <div className="flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">Total balance</p>
-              <p className="text-3xl font-semibold tracking-tight">৳128,450</p>
+              <BalanceVisibility>
+                <p className="text-3xl font-semibold tracking-tight">৳128,450</p>
+              </BalanceVisibility>
             </div>
             <Badge variant="secondary">August</Badge>
           </div>

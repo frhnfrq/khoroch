@@ -17,6 +17,7 @@ export async function GET() {
         case
           when ${transactions.status} <> 'void'
             and ${transactions.deletedAt} is null
+            and ${transactionEntries.affectsBalance} = true
           then ${transactionEntries.amount}
           else 0
         end

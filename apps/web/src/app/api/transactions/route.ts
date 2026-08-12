@@ -12,6 +12,7 @@ import {
 import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, type SQL } from "drizzle-orm";
 
 import { handleRouteError, readJson, unauthorized } from "@/lib/finance/http";
+import { occurredBeforeBalanceTracking } from "@/lib/finance/balance-tracking";
 import { getTransactionDisplayAmount, getTransferFee } from "@/lib/finance/format";
 import { createTransactionSchema, transactionFiltersSchema } from "@/lib/finance/validation";
 import type { TransactionEntryView, TransactionView } from "@/lib/finance/types";
@@ -108,6 +109,9 @@ export async function GET(request: Request) {
         amount,
         transferFee: transaction.type === "transfer" ? getTransferFee(transactionEntriesForId) : 0,
         currency: transactionEntriesForId[0]?.accountCurrency ?? "BDT",
+        isHistorical:
+          transactionEntriesForId.length > 0 &&
+          transactionEntriesForId.every((entry) => !entry.affectsBalance),
         entries: transactionEntriesForId,
       });
 
@@ -139,7 +143,11 @@ export async function POST(request: Request) {
 
     const accountIds = [...new Set(input.entries.map((entry) => entry.accountId))];
     const ownedAccounts = await db
-      .select({ id: accounts.id, currency: accounts.currency })
+      .select({
+        id: accounts.id,
+        currency: accounts.currency,
+        openingBalanceAt: accounts.openingBalanceAt,
+      })
       .from(accounts)
       .where(
         and(
@@ -166,6 +174,30 @@ export async function POST(request: Request) {
     const accountCurrencyById = new Map(
       ownedAccounts.map((account) => [account.id, account.currency]),
     );
+    const occurredAt = new Date(input.occurredAt);
+    const historicalAccountIds = new Set(
+      ownedAccounts
+        .filter((account) => occurredBeforeBalanceTracking(occurredAt, account.openingBalanceAt))
+        .map((account) => account.id),
+    );
+    if (
+      historicalAccountIds.size > 0 &&
+      (input.type === "transfer" || input.type === "adjustment")
+    ) {
+      return Response.json(
+        { error: "Transfers and balance adjustments must be dated after balance tracking began" },
+        { status: 400 },
+      );
+    }
+    if (
+      historicalAccountIds.size > 0 &&
+      (input.createFundingBucket || input.entries.some((entry) => entry.fundingBucketId))
+    ) {
+      return Response.json(
+        { error: "Historical activity cannot use an income funding bucket" },
+        { status: 400 },
+      );
+    }
     if (
       input.createFundingBucket &&
       ownedAccounts.some((account) => account.currency !== input.createFundingBucket?.currency)
@@ -237,6 +269,7 @@ export async function POST(request: Request) {
             eq(budgetItems.userId, userId),
             inArray(budgetItems.id, budgetItemIds),
             isNull(budgetItems.deletedAt),
+            isNull(budgets.deletedAt),
           ),
         );
       if (ownedBudgetItems.length !== budgetItemIds.length) {
@@ -339,7 +372,7 @@ export async function POST(request: Request) {
           clientRequestId: input.clientRequestId,
           type: input.type,
           status: input.status,
-          occurredAt: new Date(input.occurredAt),
+          occurredAt,
           title: input.title,
           payee: input.payee,
           note: input.note,
@@ -356,6 +389,7 @@ export async function POST(request: Request) {
             entry.categoryId ??
             (entry.budgetItemId ? (budgetCategoryById.get(entry.budgetItemId) ?? null) : null),
           fundingBucketId: entry.fundingBucketId ?? createdFundingBucketId,
+          affectsBalance: !historicalAccountIds.has(entry.accountId),
           sortOrder,
         })),
       );

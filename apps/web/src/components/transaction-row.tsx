@@ -68,6 +68,7 @@ export function TransactionRow({
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium">{transaction.title}</p>
           {transaction.status === "pending" ? <Badge variant="secondary">Pending</Badge> : null}
+          {transaction.isHistorical ? <Badge variant="secondary">Historical</Badge> : null}
         </div>
         <p className="truncate text-xs text-muted-foreground">
           {uniqueCategories.size > 1

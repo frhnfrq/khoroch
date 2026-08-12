@@ -19,20 +19,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 
-import { apiFetch, createClientRequestId } from "@/lib/client-api";
-import { CategoryPicker } from "@/components/category-picker";
-import { MoneyInput } from "@/components/money-input";
-import { SearchPicker } from "@/components/search-picker";
-import { SubItemPanel } from "@/components/sub-item-panel";
+import { BudgetLineEditor } from "@/components/budget-line-editor";
 import { useFinanceSettings } from "@/hooks/use-finance-settings";
-
-type BudgetLine = {
-  clientId: string;
-  name: string;
-  plannedAmount: string;
-  categoryId: string;
-  parentClientId: string;
-};
+import { apiFetch } from "@/lib/client-api";
+import {
+  createBudgetLineDraft,
+  type BudgetLineDraft,
+  validateBudgetLineDrafts,
+} from "@/lib/finance/budget-draft";
 
 function defaultMonth() {
   const now = new Date();
@@ -50,21 +44,11 @@ function monthDetails(month: string) {
   };
 }
 
-function newLine(): BudgetLine {
-  return {
-    clientId: createClientRequestId(),
-    name: "",
-    plannedAmount: "",
-    categoryId: "",
-    parentClientId: "",
-  };
-}
-
 export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string }) {
   const [open, setOpen] = useState(false);
   const [budgetMonth, setBudgetMonth] = useState(month);
   const [name, setName] = useState(() => monthDetails(month).name);
-  const [lines, setLines] = useState<BudgetLine[]>(() => [newLine()]);
+  const [lines, setLines] = useState<BudgetLineDraft[]>(() => [createBudgetLineDraft()]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const { mutate } = useSWRConfig();
@@ -86,7 +70,7 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
     setName(monthDetails(month).name);
   }, [month, open]);
 
-  function updateLine(clientId: string, changes: Partial<BudgetLine>) {
+  function updateLine(clientId: string, changes: Partial<BudgetLineDraft>) {
     setLines((current) =>
       current.map((line) => (line.clientId === clientId ? { ...line, ...changes } : line)),
     );
@@ -94,11 +78,12 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validLines = lines.filter((line) => line.name.trim() && Number(line.plannedAmount) >= 0);
-    if (validLines.length === 0) {
-      const message = "Add at least one budget item with a planned amount.";
-      setSubmitError(message);
-      toast.error(message);
+    if (event.target !== event.currentTarget) return;
+
+    const validated = validateBudgetLineDrafts(lines);
+    if (validated.error) {
+      setSubmitError(validated.error);
+      toast.error(validated.error);
       return;
     }
 
@@ -114,18 +99,12 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
           periodEnd: details.periodEnd,
           currency: defaultCurrency,
           rollover: false,
-          items: validLines.map((line) => ({
-            clientId: line.clientId,
-            parentClientId: line.parentClientId || null,
-            categoryId: line.categoryId || null,
-            name: line.name,
-            plannedAmount: Number(line.plannedAmount || 0),
-          })),
+          items: validated.items,
         }),
       });
       await mutate((key) => typeof key === "string" && key.startsWith("/api/budgets"));
       toast.success("Monthly budget created.");
-      setLines([newLine()]);
+      setLines([createBudgetLineDraft()]);
       setOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not create this budget.";
@@ -191,11 +170,16 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
                       icon: "piggy-bank",
                     }));
                   return (
-                    <SubItemPanel
+                    <BudgetLineEditor
                       key={line.clientId}
+                      line={line}
                       index={index}
-                      label={line.name.trim() || "Budget item"}
-                      nested={Boolean(line.parentClientId)}
+                      currency={defaultCurrency}
+                      categories={categories}
+                      categoriesLoading={categoriesLoading}
+                      categoryError={categoryError ? "Refresh and try again." : undefined}
+                      parentItems={parentItems}
+                      onChange={(changes) => updateLine(line.clientId, changes)}
                       onRemove={
                         lines.length > 1
                           ? () =>
@@ -210,86 +194,14 @@ export function CreateBudgetDrawer({ month = defaultMonth() }: { month?: string 
                               )
                           : undefined
                       }
-                    >
-                      <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
-                        <Field>
-                          <FieldLabel htmlFor={`budget-name-${line.clientId}`}>Name</FieldLabel>
-                          <Input
-                            id={`budget-name-${line.clientId}`}
-                            name={`budgetItemName${index + 1}`}
-                            value={line.name}
-                            onChange={(event) =>
-                              updateLine(line.clientId, { name: event.target.value })
-                            }
-                            placeholder="Groceries, Office, Tour…"
-                            autoComplete="off"
-                            required={index === 0}
-                          />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor={`budget-amount-${line.clientId}`}>
-                            Planned
-                          </FieldLabel>
-                          <MoneyInput
-                            id={`budget-amount-${line.clientId}`}
-                            name={`budgetItemAmount${index + 1}`}
-                            currency={defaultCurrency}
-                            min="0"
-                            step="0.01"
-                            value={line.plannedAmount}
-                            onChange={(event) =>
-                              updateLine(line.clientId, { plannedAmount: event.target.value })
-                            }
-                            required={index === 0}
-                          />
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field>
-                          <FieldLabel>Category</FieldLabel>
-                          <CategoryPicker
-                            categories={categories}
-                            kind="expense"
-                            value={line.categoryId}
-                            onValueChange={(value) =>
-                              updateLine(line.clientId, { categoryId: value })
-                            }
-                            loading={categoriesLoading}
-                            errorMessage={categoryError ? "Refresh and try again." : undefined}
-                            optional
-                          />
-                        </Field>
-                        <Field>
-                          <FieldLabel>Parent budget</FieldLabel>
-                          <SearchPicker
-                            title="Choose a parent budget item"
-                            description="This item’s spending will roll up to its parent."
-                            placeholder="Top level"
-                            searchPlaceholder="Search budget items…"
-                            emptyMessage="Name an earlier item before choosing it as a parent."
-                            items={parentItems}
-                            value={line.parentClientId}
-                            onValueChange={(value) =>
-                              updateLine(line.clientId, { parentClientId: value })
-                            }
-                            disabled={parentItems.length === 0}
-                            clearable
-                          />
-                        </Field>
-                      </div>
-                      {line.parentClientId ? (
-                        <p className="text-xs text-muted-foreground">
-                          Nested spending counts once and appears under the parent total.
-                        </p>
-                      ) : null}
-                    </SubItemPanel>
+                    />
                   );
                 })}
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setLines((current) => [...current, newLine()])}
+                  onClick={() => setLines((current) => [...current, createBudgetLineDraft()])}
                 >
                   <PlusIcon data-icon="inline-start" />
                   Add budget item

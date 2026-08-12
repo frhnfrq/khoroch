@@ -68,6 +68,9 @@ export const accounts = pgTable(
     })
       .notNull()
       .default(0),
+    openingBalanceAt: timestamp("opening_balance_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     icon: text("icon").notNull().default("wallet"),
     color: text("color").notNull().default("violet"),
     isArchived: boolean("is_archived").notNull().default(false),
@@ -209,6 +212,13 @@ export const budgetItems = pgTable(
     })
       .notNull()
       .default(0),
+    priorSpentAmount: numeric("prior_spent_amount", {
+      precision: 16,
+      scale: 2,
+      mode: "number",
+    })
+      .notNull()
+      .default(0),
     sortOrder: integer("sort_order").notNull().default(0),
     version: integer("version").notNull().default(1),
     ...timestamps,
@@ -218,6 +228,7 @@ export const budgetItems = pgTable(
     index("budget_items_category_idx").on(table.userId, table.categoryId),
     index("budget_items_parent_idx").on(table.parentId),
     check("budget_items_planned_amount_nonnegative", sql`${table.plannedAmount} >= 0`),
+    check("budget_items_prior_spent_amount_nonnegative", sql`${table.priorSpentAmount} >= 0`),
   ],
 );
 
@@ -241,6 +252,7 @@ export const transactionEntries = pgTable(
     fundingBucketId: uuid("funding_bucket_id").references(() => fundingBuckets.id, {
       onDelete: "set null",
     }),
+    affectsBalance: boolean("affects_balance").notNull().default(true),
     amount: numeric("amount", { precision: 16, scale: 2, mode: "number" }).notNull(),
     memo: text("memo"),
     sortOrder: integer("sort_order").notNull().default(0),

@@ -44,6 +44,7 @@ import { SearchPicker } from "@/components/search-picker";
 import { SubItemPanel } from "@/components/sub-item-panel";
 import { useFinanceSettings } from "@/hooks/use-finance-settings";
 import { apiFetch, createClientRequestId } from "@/lib/client-api";
+import { occurredBeforeBalanceTracking } from "@/lib/finance/balance-tracking";
 import { formatMoney } from "@/lib/finance/format";
 import type { AccountWithBalance, BudgetView, FundingBucketView } from "@/lib/finance/types";
 
@@ -78,6 +79,11 @@ function newSplitLine(): SplitLine {
     memo: "",
   };
 }
+
+const trackingDateFormatter = new Intl.DateTimeFormat("en-BD", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 export function AddTransactionDrawer({
   trigger,
@@ -149,6 +155,27 @@ export function AddTransactionDrawer({
     [accounts],
   );
   const selectedAccount = accounts.find((account) => account.id === accountId) ?? null;
+  const selectedDestinationAccount =
+    accounts.find((account) => account.id === destinationAccountId) ?? null;
+  const selectedOccurredAt = new Date(occurredAt);
+  const dateIsValid = Number.isFinite(selectedOccurredAt.getTime());
+  const relevantAccounts = [
+    selectedAccount,
+    ...(type === "transfer" ? [selectedDestinationAccount] : []),
+  ].filter((account): account is AccountWithBalance => Boolean(account));
+  const historicalAccounts = dateIsValid
+    ? relevantAccounts.filter((account) =>
+        occurredBeforeBalanceTracking(
+          selectedOccurredAt,
+          account.openingBalanceAt as Date | string,
+        ),
+      )
+    : [];
+  const isBeforeBalanceTracking = historicalAccounts.length > 0;
+  const isHistoricalActivity =
+    isBeforeBalanceTracking && type !== "transfer" && type !== "adjustment";
+  const isHistoricalActionBlocked =
+    isBeforeBalanceTracking && (type === "transfer" || type === "adjustment");
   const destinationItems = useMemo(
     () =>
       accountItems.filter((account) => {
@@ -210,6 +237,7 @@ export function AddTransactionDrawer({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (event.target !== event.currentTarget) return;
     setSubmitError("");
     if (!accountId) {
       const message = "Choose an account first.";
@@ -217,7 +245,19 @@ export function AddTransactionDrawer({
       toast.error(message);
       return;
     }
-
+    if (!dateIsValid) {
+      const message = "Enter a valid activity date and time.";
+      setSubmitError(message);
+      toast.error(message);
+      return;
+    }
+    if (isHistoricalActionBlocked) {
+      const message =
+        "Transfers and balance adjustments must be dated after balance tracking began.";
+      setSubmitError(message);
+      toast.error(message);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const occurredAtIso = new Date(occurredAt).toISOString();
@@ -351,7 +391,7 @@ export function AddTransactionDrawer({
             note: note || null,
             parentTransactionId: null,
             createFundingBucket:
-              type === "income"
+              type === "income" && !isHistoricalActivity
                 ? {
                     name: salaryEntry
                       ? `${new Intl.DateTimeFormat("en", {
@@ -375,7 +415,7 @@ export function AddTransactionDrawer({
               categoryId: salaryEntry ? (salaryCategory?.id ?? null) : line.categoryId || null,
               budgetItemId:
                 type === "expense" || type === "refund" ? line.budgetItemId || null : null,
-              fundingBucketId: fundingBucketId || null,
+              fundingBucketId: isHistoricalActivity ? null : fundingBucketId || null,
               memo: line.memo || null,
             })),
           }),
@@ -442,9 +482,21 @@ export function AddTransactionDrawer({
                   onValueChange={(values) => {
                     const nextType = values[0] as QuickTransactionType | undefined;
                     if (nextType) {
+                      if ((type === "income") !== (nextType === "income")) {
+                        setLines((current) =>
+                          current.map((line) => ({
+                            ...line,
+                            categoryId: "",
+                            budgetItemId: "",
+                          })),
+                        );
+                      }
                       setType(nextType);
                       setSubmitError("");
                       if (nextType !== "income") setIsSalary(false);
+                      if (nextType === "income" || nextType === "adjustment") {
+                        setFundingBucketId("");
+                      }
                     }
                   }}
                   variant="outline"
@@ -506,6 +558,26 @@ export function AddTransactionDrawer({
                   />
                 </Field>
               </div>
+
+              {historicalAccounts.length > 0 ? (
+                <div
+                  className="rounded-2xl border border-chart-2/30 bg-chart-2/10 p-4"
+                  role={isHistoricalActionBlocked ? "alert" : "status"}
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">Historical</Badge>
+                    <p className="text-sm font-medium">
+                      Before {historicalAccounts.map((account) => account.name).join(" and ")} began
+                      balance tracking
+                    </p>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {isHistoricalActionBlocked
+                      ? "Transfers and adjustments change account state, so move the date to when balance tracking was active."
+                      : `This activity will stay in your history${type === "expense" || type === "refund" ? " and budget" : ""}, but it will not change the current account balance. Tracking began ${trackingDateFormatter.format(new Date(historicalAccounts[0].openingBalanceAt as Date | string))}.`}
+                  </p>
+                </div>
+              ) : null}
 
               {type === "transfer" ? (
                 <div className="flex flex-col gap-4 rounded-2xl border bg-muted/30 p-4">
@@ -595,7 +667,9 @@ export function AddTransactionDrawer({
                       <div className="flex flex-col gap-0.5">
                         <FieldTitle>Salary income</FieldTitle>
                         <FieldDescription>
-                          Create a salary bucket that later expenses can use.
+                          {isHistoricalActivity
+                            ? "Classify this as salary without changing today’s balance or creating a funding bucket."
+                            : "Create a salary bucket that later expenses can use."}
                         </FieldDescription>
                       </div>
                       <Switch
@@ -717,6 +791,7 @@ export function AddTransactionDrawer({
 
               {type !== "income" &&
               type !== "adjustment" &&
+              !isHistoricalActivity &&
               (type !== "transfer" || Number(transferFee) > 0) ? (
                 <Field>
                   <FieldLabel>{type === "transfer" ? "Fee funded by" : "Funded by"}</FieldLabel>

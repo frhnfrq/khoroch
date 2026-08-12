@@ -7,6 +7,13 @@ export class ApiInputError extends Error {
   }
 }
 
+export class ApiConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiConflictError";
+  }
+}
+
 export function unauthorized() {
   return Response.json({ error: "Unauthorized" }, { status: 401 });
 }
@@ -33,6 +40,10 @@ export function handleRouteError(error: unknown) {
 
   if (error instanceof ApiInputError) {
     return Response.json({ error: error.message }, { status: 400 });
+  }
+
+  if (error instanceof ApiConflictError) {
+    return Response.json({ error: error.message }, { status: 409 });
   }
 
   const databaseError = findDatabaseError(error);

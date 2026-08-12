@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import useSWR from "swr";
 
+import { BalanceVisibility } from "@/components/balance-visibility";
 import { FinanceIcon } from "@/components/finance-icon";
 import { TransactionRow } from "@/components/transaction-row";
 import { useFinanceSettings } from "@/hooks/use-finance-settings";
@@ -168,13 +169,15 @@ export default function DashboardPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
               <p className="text-xs text-primary-foreground/70">Across all accounts</p>
-              <p className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                {accountTotals.length > 0
-                  ? accountTotals
-                      .map((total) => formatMoney(total.amount, total.currency))
-                      .join(" · ")
-                  : formatMoney(0, defaultCurrency)}
-              </p>
+              <BalanceVisibility>
+                <p className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {accountTotals.length > 0
+                    ? accountTotals
+                        .map((total) => formatMoney(total.amount, total.currency))
+                        .join(" · ")
+                    : formatMoney(0, defaultCurrency)}
+                </p>
+              </BalanceVisibility>
             </div>
             <Badge variant="secondary">Live balance</Badge>
           </div>

@@ -26,10 +26,14 @@ export type TransactionView = Transaction & {
   amount: number;
   transferFee: number;
   currency: string;
+  isHistorical: boolean;
   entries: TransactionEntryView[];
 };
 
 export type BudgetItemView = BudgetItem & {
+  directPlannedAmount: number;
+  directPriorSpentAmount: number;
+  ledgerSpentAmount: number;
   spentAmount: number;
   remainingAmount: number;
   category: Pick<Category, "id" | "name" | "icon" | "color"> | null;

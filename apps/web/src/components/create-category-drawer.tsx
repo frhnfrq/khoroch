@@ -83,6 +83,7 @@ export function CreateCategoryDrawer({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
     const trimmedName = name.trim();
     if (!trimmedName) {
       setSubmitError("Enter a category name.");
