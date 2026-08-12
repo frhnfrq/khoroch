@@ -30,6 +30,8 @@ This project uses PostgreSQL with Drizzle ORM.
 1. Make sure you have a PostgreSQL database set up.
 2. Update your `apps/web/.env` file with your PostgreSQL connection details.
 
+   For hosted databases, keep the provider's `sslmode` in `DATABASE_URL`. The app uses PostgreSQL/libpq semantics: `sslmode=require` encrypts the connection, while `sslmode=verify-full` also verifies the server certificate and therefore requires a CA chain trusted by Node.js.
+
 3. Apply the schema to your database:
 
 ```bash

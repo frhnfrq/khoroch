@@ -4,7 +4,7 @@
     "web": {
       "root": "apps/web",
       "framework": "nextjs",
-      "installCommand": "cd ../.. && pnpm install"
+      "installCommand": "cd ../.. && pnpm install && pnpm --filter @khoroch/db run db:migrate"
     }
   },
   "rewrites": [

@@ -6,6 +6,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "check-types": "tsc --noEmit",
+    "db:migrate": "pnpm --filter @khoroch/db run db:migrate",
     "start": "next start"
   },
   "dependencies": {
