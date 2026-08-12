@@ -27,7 +27,6 @@ export const supportedCurrencies = ["BDT", "USD", "EUR", "GBP", "INR"] as const;
 const moneySchema = z
   .number()
   .finite()
-  .safe()
   .refine((value) => Math.abs(value) <= 999_999_999_999.99, "Amount is too large")
   .transform((value) => Math.round(value * 100) / 100);
 
