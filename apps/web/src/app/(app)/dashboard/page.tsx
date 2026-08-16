@@ -35,6 +35,7 @@ import type {
   AccountWithBalance,
   BudgetView,
   FundingBucketView,
+  TransactionTotalView,
   TransactionView,
 } from "@/lib/finance/types";
 
@@ -130,8 +131,8 @@ export default function DashboardPage() {
     error: transactionError,
     isLoading: transactionsLoading,
     mutate: mutateTransactions,
-  } = useSWR<{ transactions: TransactionView[] }>(
-    `/api/transactions?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&limit=8`,
+  } = useSWR<{ transactions: TransactionView[]; totals: TransactionTotalView[] }>(
+    `/api/transactions?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&limit=8&includeSummary=true`,
   );
   const {
     data: budgetData,
@@ -148,6 +149,7 @@ export default function DashboardPage() {
 
   const accounts = accountData?.accounts.filter((account) => !account.isArchived) ?? [];
   const transactions = transactionData?.transactions ?? [];
+  const transactionTotals = transactionData?.totals ?? [];
   const currentBudget = budgetData?.budgets[0] ?? null;
   const fundingBuckets = [...(fundingData?.fundingBuckets ?? [])]
     .filter((bucket) => !bucket.isArchived)
@@ -162,15 +164,15 @@ export default function DashboardPage() {
     }),
   );
   const formatTransactionTotals = (type: TransactionView["type"]) => {
-    const matching = transactions.filter((transaction) => transaction.type === type);
-    const currencies = [...new Set(matching.map((transaction) => transaction.currency))];
+    const matching = transactionTotals.filter((total) => total.type === type);
+    const currencies = [...new Set(matching.map((total) => total.currency))];
     if (currencies.length === 0) return formatCompactMoney(0, defaultCurrency);
     return currencies
       .map((currency) =>
         formatCompactMoney(
           matching
-            .filter((transaction) => transaction.currency === currency)
-            .reduce((sum, transaction) => sum + transaction.amount, 0),
+            .filter((total) => total.currency === currency)
+            .reduce((sum, total) => sum + total.amount, 0),
           currency,
         ),
       )

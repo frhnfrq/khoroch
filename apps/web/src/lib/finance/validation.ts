@@ -165,6 +165,10 @@ export const transactionFiltersSchema = z.object({
   status: z.enum(transactionStatuses).optional(),
   query: z.string().trim().max(100).optional(),
   limit: z.coerce.number().int().min(1).max(250).default(100),
+  includeSummary: z
+    .literal("true")
+    .optional()
+    .transform((value) => value === "true"),
 });
 
 const budgetItemInputSchema = z.object({

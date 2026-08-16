@@ -30,6 +30,12 @@ export type TransactionView = Transaction & {
   entries: TransactionEntryView[];
 };
 
+export type TransactionTotalView = {
+  type: Extract<Transaction["type"], "expense" | "income">;
+  currency: string;
+  amount: number;
+};
+
 export type BudgetItemView = BudgetItem & {
   directPlannedAmount: number;
   directPriorSpentAmount: number;

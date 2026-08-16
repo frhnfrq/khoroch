@@ -9,13 +9,30 @@ import {
   transactionEntries,
   transactions,
 } from "@khoroch/db/schema";
-import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 
 import { handleRouteError, readJson, unauthorized } from "@/lib/finance/http";
 import { occurredBeforeBalanceTracking } from "@/lib/finance/balance-tracking";
 import { getTransactionDisplayAmount, getTransferFee } from "@/lib/finance/format";
 import { createTransactionSchema, transactionFiltersSchema } from "@/lib/finance/validation";
-import type { TransactionEntryView, TransactionView } from "@/lib/finance/types";
+import type {
+  TransactionEntryView,
+  TransactionTotalView,
+  TransactionView,
+} from "@/lib/finance/types";
 
 export async function GET(request: Request) {
   const { isAuthenticated, userId } = await auth();
@@ -40,14 +57,59 @@ export async function GET(request: Request) {
       if (searchCondition) conditions.push(searchCondition);
     }
 
-    const transactionRows = await db
-      .select()
-      .from(transactions)
-      .where(and(...conditions))
-      .orderBy(desc(transactions.occurredAt), desc(transactions.createdAt))
-      .limit(500);
+    const summaryConditions = [
+      ...conditions,
+      inArray(transactions.type, ["expense", "income"]),
+      ne(transactions.status, "void"),
+    ];
+    const summaryPromise = filters.includeSummary
+      ? db
+          .select({
+            type: transactions.type,
+            currency: accounts.currency,
+            amount: sql<number>`coalesce(sum(
+              case
+                when ${transactions.type} = 'expense' and ${transactionEntries.amount} < 0
+                  then -${transactionEntries.amount}
+                when ${transactions.type} = 'income' and ${transactionEntries.amount} > 0
+                  then ${transactionEntries.amount}
+                else 0
+              end
+            ), 0)`,
+          })
+          .from(transactions)
+          .innerJoin(
+            transactionEntries,
+            and(
+              eq(transactionEntries.transactionId, transactions.id),
+              eq(transactionEntries.userId, userId),
+            ),
+          )
+          .innerJoin(
+            accounts,
+            and(eq(accounts.id, transactionEntries.accountId), eq(accounts.userId, userId)),
+          )
+          .where(and(...summaryConditions))
+          .groupBy(transactions.type, accounts.currency)
+      : Promise.resolve([]);
 
-    if (transactionRows.length === 0) return Response.json({ transactions: [] });
+    const [transactionRows, summaryRows] = await Promise.all([
+      db
+        .select()
+        .from(transactions)
+        .where(and(...conditions))
+        .orderBy(desc(transactions.occurredAt), desc(transactions.createdAt))
+        .limit(500),
+      summaryPromise,
+    ]);
+
+    const totals: TransactionTotalView[] = summaryRows.flatMap((row) =>
+      row.type === "expense" || row.type === "income"
+        ? [{ type: row.type, currency: row.currency, amount: Number(row.amount) }]
+        : [],
+    );
+
+    if (transactionRows.length === 0) return Response.json({ transactions: [], totals });
 
     const entries = await db
       .select({
@@ -118,7 +180,7 @@ export async function GET(request: Request) {
       if (result.length >= filters.limit) break;
     }
 
-    return Response.json({ transactions: result });
+    return Response.json({ transactions: result, totals });
   } catch (error) {
     return handleRouteError(error);
   }
