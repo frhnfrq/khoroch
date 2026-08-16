@@ -397,7 +397,7 @@ export default function DashboardPage() {
               />
               <div className="flex flex-col gap-2">
                 {currentBudget.items
-                  .filter((item) => !item.parentId)
+                  .filter((item) => !item.parentId && item.remainingAmount > 0)
                   .slice(0, 4)
                   .map((item) => (
                     <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
