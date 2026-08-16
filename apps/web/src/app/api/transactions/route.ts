@@ -47,6 +47,19 @@ export async function GET(request: Request) {
     if (filters.to) conditions.push(lte(transactions.occurredAt, new Date(filters.to)));
     if (filters.type) conditions.push(eq(transactions.type, filters.type));
     if (filters.status) conditions.push(eq(transactions.status, filters.status));
+    if (filters.budgetId) {
+      conditions.push(sql`exists (
+        select 1
+        from ${transactionEntries}
+        inner join ${budgetItems}
+          on ${budgetItems.id} = ${transactionEntries.budgetItemId}
+        where ${transactionEntries.transactionId} = ${transactions.id}
+          and ${transactionEntries.userId} = ${userId}
+          and ${budgetItems.userId} = ${userId}
+          and ${budgetItems.budgetId} = ${filters.budgetId}
+          and ${budgetItems.deletedAt} is null
+      )`);
+    }
     if (filters.query) {
       const query = `%${filters.query}%`;
       const searchCondition = or(

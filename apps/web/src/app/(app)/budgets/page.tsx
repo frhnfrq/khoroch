@@ -184,41 +184,57 @@ export default function BudgetsPage() {
                   : 0;
               return (
                 <div key={item.id}>
-                  <div className={cn("flex items-center gap-3 py-4", item.parentId && "pl-6")}>
-                    {item.parentId ? (
-                      <CornerDownRightIcon className="size-4 shrink-0 text-muted-foreground" />
-                    ) : null}
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-chart-4/15 text-chart-4">
-                      <FinanceIcon name={item.category?.icon ?? "piggy-bank"} className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <p className="truncate text-sm font-medium">{item.name}</p>
+                  <BudgetItemDetailsDrawer
+                    budget={budget}
+                    item={item}
+                    trigger={
+                      <div
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center gap-3",
+                          item.parentId && "pl-6",
+                        )}
+                      >
+                        {item.parentId ? (
+                          <CornerDownRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                        ) : null}
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-chart-4/15 text-chart-4">
+                          <FinanceIcon
+                            name={item.category?.icon ?? "piggy-bank"}
+                            className="size-4"
+                          />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <p className="truncate text-sm font-medium">{item.name}</p>
+                              {item.priorSpentAmount > 0 ? (
+                                <Badge variant="secondary">Prior spending</Badge>
+                              ) : null}
+                            </div>
+                            <p
+                              className={cn(
+                                "shrink-0 text-xs tabular-nums sm:text-right",
+                                item.remainingAmount < 0
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {formatMoney(item.spentAmount, budget.currency)} /{" "}
+                              {formatMoney(item.plannedAmount, budget.currency)}
+                            </p>
+                          </div>
+                          <Progress value={ratio} className="mt-2" />
                           {item.priorSpentAmount > 0 ? (
-                            <Badge variant="secondary">Prior spending</Badge>
+                            <p className="mt-1 text-[0.65rem] text-muted-foreground">
+                              {formatMoney(item.priorSpentAmount, budget.currency)} was spent before
+                              balance tracking began.
+                            </p>
                           ) : null}
                         </div>
-                        <p
-                          className={cn(
-                            "shrink-0 text-xs tabular-nums sm:text-right",
-                            item.remainingAmount < 0 ? "text-destructive" : "text-muted-foreground",
-                          )}
-                        >
-                          {formatMoney(item.spentAmount, budget.currency)} /{" "}
-                          {formatMoney(item.plannedAmount, budget.currency)}
-                        </p>
+                        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                       </div>
-                      <Progress value={ratio} className="mt-2" />
-                      {item.priorSpentAmount > 0 ? (
-                        <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                          {formatMoney(item.priorSpentAmount, budget.currency)} was spent before
-                          balance tracking began.
-                        </p>
-                      ) : null}
-                    </div>
-                    <BudgetItemDetailsDrawer budget={budget} item={item} />
-                  </div>
+                    }
+                  />
                   {index < budget.items.length - 1 ? <Separator /> : null}
                 </div>
               );

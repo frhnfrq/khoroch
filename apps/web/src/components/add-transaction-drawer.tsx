@@ -85,6 +85,28 @@ const trackingDateFormatter = new Intl.DateTimeFormat("en-BD", {
   timeStyle: "short",
 });
 
+const budgetMonthFormatter = new Intl.DateTimeFormat("en-BD", {
+  month: "long",
+  year: "numeric",
+});
+
+function localDateTimeValue() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
+}
+
+function monthFromDateTime(value: string) {
+  return /^\d{4}-\d{2}/.test(value) ? value.slice(0, 7) : "";
+}
+
+function formatBudgetMonth(month: string) {
+  const value = new Date(`${month}-01T00:00:00`);
+  return Number.isFinite(value.getTime())
+    ? budgetMonthFormatter.format(value)
+    : "the selected month";
+}
+
 export function AddTransactionDrawer({
   trigger,
   defaultType = "expense",
@@ -97,11 +119,8 @@ export function AddTransactionDrawer({
   const [title, setTitle] = useState("");
   const [payee, setPayee] = useState("");
   const [note, setNote] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().slice(0, 16);
-  });
+  const [occurredAt, setOccurredAt] = useState(localDateTimeValue);
+  const [budgetMonth, setBudgetMonth] = useState(() => localDateTimeValue().slice(0, 7));
   const [accountId, setAccountId] = useState("");
   const [destinationAccountId, setDestinationAccountId] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
@@ -127,11 +146,12 @@ export function AddTransactionDrawer({
     isLoading: categoriesLoading,
   } = useSWR<{ categories: Category[] }>(open ? "/api/categories" : null);
   const activityMonth = occurredAt.slice(0, 7) || new Date().toISOString().slice(0, 7);
+  const effectiveBudgetMonth = budgetMonth || activityMonth;
   const {
     data: budgetData,
     error: budgetError,
     isLoading: budgetsLoading,
-  } = useSWR<{ budgets: BudgetView[] }>(open ? `/api/budgets?month=${activityMonth}` : null);
+  } = useSWR<{ budgets: BudgetView[] }>(open ? `/api/budgets?month=${effectiveBudgetMonth}` : null);
   const {
     data: fundingData,
     error: fundingError,
@@ -140,7 +160,7 @@ export function AddTransactionDrawer({
 
   const accounts = accountData?.accounts.filter((account) => !account.isArchived) ?? [];
   const categories = categoryData?.categories.filter((category) => !category.isArchived) ?? [];
-  const currentBudget = budgetData?.budgets[0] ?? null;
+  const availableBudgets = budgetData?.budgets ?? [];
   const fundingBuckets = fundingData?.fundingBuckets.filter((bucket) => !bucket.isArchived) ?? [];
 
   const accountItems = useMemo(
@@ -188,19 +208,27 @@ export function AddTransactionDrawer({
       }),
     [accountId, accountItems, accounts, selectedAccount],
   );
-  const budgetItems = currentBudget?.items ?? [];
   const budgetSelectItems = useMemo(
     () =>
-      budgetItems.map((item) => {
-        const parent = budgetItems.find((candidate) => candidate.id === item.parentId);
-        return {
-          value: item.id,
-          label: parent ? `${parent.name} / ${item.name}` : item.name,
-          description: `${formatMoney(item.remainingAmount, currentBudget?.currency ?? defaultCurrency)} remaining`,
-          icon: item.category?.icon ?? undefined,
-        };
-      }),
-    [budgetItems, currentBudget?.currency, defaultCurrency],
+      availableBudgets.flatMap((budget) =>
+        budget.items.map((item) => {
+          const parent = budget.items.find((candidate) => candidate.id === item.parentId);
+          return {
+            value: item.id,
+            label: parent ? `${parent.name} / ${item.name}` : item.name,
+            description: `${budget.name} · ${formatMoney(item.remainingAmount, budget.currency)} remaining`,
+            icon: item.category?.icon ?? undefined,
+          };
+        }),
+      ),
+    [availableBudgets],
+  );
+  const budgetItemById = useMemo(
+    () =>
+      new Map(
+        availableBudgets.flatMap((budget) => budget.items.map((item) => [item.id, item] as const)),
+      ),
+    [availableBudgets],
   );
   const fundingSelectItems = useMemo(
     () =>
@@ -231,6 +259,7 @@ export function AddTransactionDrawer({
     setAdjustedBalance("");
     setFundingBucketId("");
     setIsSalary(false);
+    setBudgetMonth(activityMonth);
     setLines([newSplitLine()]);
     setSubmitError("");
   }
@@ -553,7 +582,22 @@ export function AddTransactionDrawer({
                     name="occurredAt"
                     type="datetime-local"
                     value={occurredAt}
-                    onChange={(event) => setOccurredAt(event.target.value)}
+                    onChange={(event) => {
+                      const nextOccurredAt = event.target.value;
+                      const nextActivityMonth = monthFromDateTime(nextOccurredAt);
+                      const budgetFollowsActivity = budgetMonth === activityMonth;
+                      setOccurredAt(nextOccurredAt);
+                      if (
+                        budgetFollowsActivity &&
+                        nextActivityMonth &&
+                        nextActivityMonth !== budgetMonth
+                      ) {
+                        setBudgetMonth(nextActivityMonth);
+                        setLines((current) =>
+                          current.map((line) => ({ ...line, budgetItemId: "" })),
+                        );
+                      }
+                    }}
                     required
                   />
                 </Field>
@@ -681,6 +725,30 @@ export function AddTransactionDrawer({
                   ) : null}
 
                   <div className="flex flex-col gap-4">
+                    {type === "expense" || type === "refund" ? (
+                      <Field>
+                        <FieldLabel htmlFor="budget-period">Budget period</FieldLabel>
+                        <Input
+                          id="budget-period"
+                          name="budgetPeriod"
+                          type="month"
+                          value={budgetMonth}
+                          onChange={(event) => {
+                            setBudgetMonth(event.target.value);
+                            setLines((current) =>
+                              current.map((line) => ({ ...line, budgetItemId: "" })),
+                            );
+                          }}
+                          required
+                        />
+                        <FieldDescription>
+                          {budgetMonth === activityMonth
+                            ? "Defaults to the activity month. Change it for spending recorded later."
+                            : `This ${formatBudgetMonth(activityMonth)} activity will be linked to the ${formatBudgetMonth(effectiveBudgetMonth)} budget.`}
+                        </FieldDescription>
+                      </Field>
+                    ) : null}
+
                     {lines.map((line, index) => (
                       <SubItemPanel
                         key={line.id}
@@ -731,20 +799,19 @@ export function AddTransactionDrawer({
                             ) : null}
                           </Field>
                         </div>
-                        {(type === "expense" || type === "refund") &&
-                        (currentBudget || budgetsLoading || budgetError) ? (
+                        {type === "expense" || type === "refund" ? (
                           <Field>
                             <FieldLabel>Budget item</FieldLabel>
                             <SearchPicker
                               title="Choose a budget item"
-                              description={`Showing the budget for ${activityMonth}. Parent paths and remaining amounts are included.`}
+                              description={`Showing budget items active in ${formatBudgetMonth(effectiveBudgetMonth)}. Parent paths and remaining amounts are included.`}
                               placeholder="Optional budget link"
                               searchPlaceholder="Search budget items…"
-                              emptyMessage="No budget items match this search."
+                              emptyMessage={`No budget items found for ${formatBudgetMonth(effectiveBudgetMonth)}.`}
                               items={budgetSelectItems}
                               value={line.budgetItemId}
                               onValueChange={(value) => {
-                                const budgetItem = budgetItems.find((item) => item.id === value);
+                                const budgetItem = budgetItemById.get(value);
                                 updateLine(line.id, {
                                   budgetItemId: value,
                                   categoryId: budgetItem?.category?.id ?? line.categoryId,

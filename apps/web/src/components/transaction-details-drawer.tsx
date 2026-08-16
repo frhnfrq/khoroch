@@ -20,6 +20,7 @@ import {
 } from "@khoroch/ui/components/drawer";
 import { Separator } from "@khoroch/ui/components/separator";
 import { EyeIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { formatMoney } from "@/lib/finance/format";
 import type { TransactionEntryView, TransactionView } from "@/lib/finance/types";
@@ -104,7 +105,13 @@ function EntryCard({
   );
 }
 
-export function TransactionDetailsDrawer({ transaction }: { transaction: TransactionView }) {
+export function TransactionDetailsDrawer({
+  transaction,
+  trigger,
+}: {
+  transaction: TransactionView;
+  trigger?: ReactNode;
+}) {
   const amountPrefix =
     transaction.type === "expense"
       ? "−"
@@ -116,15 +123,23 @@ export function TransactionDetailsDrawer({ transaction }: { transaction: Transac
     <Drawer showSwipeHandle>
       <DrawerTrigger
         render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`View details for ${transaction.title}`}
-          />
+          trigger ? (
+            <button
+              type="button"
+              className="w-full rounded-2xl text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label={`View details for ${transaction.title}`}
+            />
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`View details for ${transaction.title}`}
+            />
+          )
         }
       >
-        <EyeIcon />
+        {trigger ?? <EyeIcon />}
       </DrawerTrigger>
       <DrawerContent className="mx-auto max-w-xl">
         <DrawerHeader>

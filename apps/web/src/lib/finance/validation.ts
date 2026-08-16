@@ -161,6 +161,7 @@ export const transactionFiltersSchema = z.object({
   maxAmount: z.coerce.number().finite().nonnegative().optional(),
   categoryId: z.uuid().optional(),
   accountId: z.uuid().optional(),
+  budgetId: z.uuid().optional(),
   type: z.enum(transactionTypes).optional(),
   status: z.enum(transactionStatuses).optional(),
   query: z.string().trim().max(100).optional(),
