@@ -553,7 +553,7 @@ export function AddTransactionDrawer({
                 />
               </Field>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <Field data-invalid={Boolean(submitError && !accountId)}>
                   <FieldLabel>{type === "transfer" ? "From account" : "Account"}</FieldLabel>
                   <SearchPicker
@@ -575,9 +575,10 @@ export function AddTransactionDrawer({
                     <FieldDescription>Add an account before recording activity.</FieldDescription>
                   ) : null}
                 </Field>
-                <Field>
+                <Field className="min-w-0">
                   <FieldLabel htmlFor="activity-date">Date and time</FieldLabel>
                   <Input
+                    className="overflow-hidden"
                     id="activity-date"
                     name="occurredAt"
                     type="datetime-local"
