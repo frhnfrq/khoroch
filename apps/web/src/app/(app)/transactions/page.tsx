@@ -28,7 +28,6 @@ import { ListFilterIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { DeleteTransactionButton } from "@/components/delete-transaction-button";
 import { MoneyInput } from "@/components/money-input";
 import { SearchPicker, type SearchPickerItem } from "@/components/search-picker";
 import { TransactionDetailsDrawer } from "@/components/transaction-details-drawer";
@@ -331,14 +330,9 @@ export default function TransactionsPage() {
               <div>
                 {group.map((transaction, index) => (
                   <div key={transaction.id}>
-                    <TransactionRow
+                    <TransactionDetailsDrawer
                       transaction={transaction}
-                      action={
-                        <div className="flex items-center">
-                          <TransactionDetailsDrawer transaction={transaction} />
-                          <DeleteTransactionButton transactionId={transaction.id} />
-                        </div>
-                      }
+                      trigger={<TransactionRow transaction={transaction} />}
                     />
                     {index < group.length - 1 ? <Separator /> : null}
                   </div>

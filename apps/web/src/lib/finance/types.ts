@@ -19,6 +19,7 @@ export type TransactionEntryView = TransactionEntry & {
   categoryIcon: string | null;
   categoryColor: string | null;
   budgetItemName: string | null;
+  budgetPeriodStart: string | null;
   fundingBucketName: string | null;
 };
 

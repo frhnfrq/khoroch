@@ -134,12 +134,14 @@ export async function GET(request: Request) {
         categoryIcon: categories.icon,
         categoryColor: categories.color,
         budgetItemName: budgetItems.name,
+        budgetPeriodStart: budgets.periodStart,
         fundingBucketName: fundingBuckets.name,
       })
       .from(transactionEntries)
       .innerJoin(accounts, eq(accounts.id, transactionEntries.accountId))
       .leftJoin(categories, eq(categories.id, transactionEntries.categoryId))
       .leftJoin(budgetItems, eq(budgetItems.id, transactionEntries.budgetItemId))
+      .leftJoin(budgets, eq(budgets.id, budgetItems.budgetId))
       .leftJoin(fundingBuckets, eq(fundingBuckets.id, transactionEntries.fundingBucketId))
       .where(
         and(

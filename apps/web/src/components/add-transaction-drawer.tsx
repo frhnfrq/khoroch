@@ -29,6 +29,7 @@ import {
   ArrowDownToLineIcon,
   ArrowRightLeftIcon,
   MinusIcon,
+  PencilIcon,
   PlusIcon,
   RotateCcwIcon,
   ScaleIcon,
@@ -46,7 +47,12 @@ import { useFinanceSettings } from "@/hooks/use-finance-settings";
 import { apiFetch, createClientRequestId } from "@/lib/client-api";
 import { occurredBeforeBalanceTracking } from "@/lib/finance/balance-tracking";
 import { formatMoney } from "@/lib/finance/format";
-import type { AccountWithBalance, BudgetView, FundingBucketView } from "@/lib/finance/types";
+import type {
+  AccountWithBalance,
+  BudgetView,
+  FundingBucketView,
+  TransactionView,
+} from "@/lib/finance/types";
 
 type QuickTransactionType = "expense" | "income" | "transfer" | "refund" | "adjustment";
 
@@ -90,10 +96,10 @@ const budgetMonthFormatter = new Intl.DateTimeFormat("en-BD", {
   year: "numeric",
 });
 
-function localDateTimeValue() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  return now.toISOString().slice(0, 16);
+function localDateTimeValue(value: Date | string = new Date()) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
 }
 
 function monthFromDateTime(value: string) {
@@ -107,29 +113,78 @@ function formatBudgetMonth(month: string) {
     : "the selected month";
 }
 
+function editableEntries(transaction: TransactionView | undefined) {
+  if (!transaction || transaction.type === "transfer" || transaction.type === "adjustment") {
+    return [newSplitLine()];
+  }
+  return transaction.entries.map((entry) => ({
+    id: entry.id,
+    amount: String(Math.abs(entry.amount)),
+    categoryId: entry.categoryId ?? "",
+    budgetItemId: entry.budgetItemId ?? "",
+    memo: entry.memo ?? "",
+  }));
+}
+
+function linkedBudgetMonth(transaction: TransactionView | undefined) {
+  const periodStart = transaction?.entries.find(
+    (entry) => entry.budgetPeriodStart,
+  )?.budgetPeriodStart;
+  return periodStart?.slice(0, 7) ?? localDateTimeValue(transaction?.occurredAt).slice(0, 7);
+}
+
 export function AddTransactionDrawer({
   trigger,
   defaultType = "expense",
+  transaction,
+  onSaved,
 }: {
   trigger?: ReactNode;
   defaultType?: QuickTransactionType;
+  transaction?: TransactionView;
+  onSaved?: () => void;
 }) {
+  const editing = Boolean(transaction);
+  const initialSourceEntry = transaction?.entries.find(
+    (entry) => entry.amount < 0 && entry.memo !== "Transfer fee",
+  );
+  const initialDestinationEntry = transaction?.entries.find((entry) => entry.amount > 0);
+  const initialAccountEntry = transaction?.entries[0];
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<QuickTransactionType>(defaultType);
-  const [title, setTitle] = useState("");
-  const [payee, setPayee] = useState("");
-  const [note, setNote] = useState("");
-  const [occurredAt, setOccurredAt] = useState(localDateTimeValue);
-  const [budgetMonth, setBudgetMonth] = useState(() => localDateTimeValue().slice(0, 7));
-  const [accountId, setAccountId] = useState("");
-  const [destinationAccountId, setDestinationAccountId] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferFee, setTransferFee] = useState("");
+  const [type, setType] = useState<QuickTransactionType>(transaction?.type ?? defaultType);
+  const [title, setTitle] = useState(transaction?.title ?? "");
+  const [payee, setPayee] = useState(transaction?.payee ?? "");
+  const [note, setNote] = useState(transaction?.note ?? "");
+  const [occurredAt, setOccurredAt] = useState(() => localDateTimeValue(transaction?.occurredAt));
+  const [budgetMonth, setBudgetMonth] = useState(() => linkedBudgetMonth(transaction));
+  const [accountId, setAccountId] = useState(
+    transaction?.type === "transfer"
+      ? (initialSourceEntry?.accountId ?? "")
+      : (initialAccountEntry?.accountId ?? ""),
+  );
+  const [destinationAccountId, setDestinationAccountId] = useState(
+    initialDestinationEntry?.accountId ?? "",
+  );
+  const [transferAmount, setTransferAmount] = useState(
+    initialDestinationEntry ? String(initialDestinationEntry.amount) : "",
+  );
+  const [transferFee, setTransferFee] = useState(
+    transaction?.transferFee ? String(transaction.transferFee) : "",
+  );
   const [feeDeducted, setFeeDeducted] = useState(false);
-  const [adjustedBalance, setAdjustedBalance] = useState("");
-  const [fundingBucketId, setFundingBucketId] = useState("");
-  const [isSalary, setIsSalary] = useState(false);
-  const [lines, setLines] = useState<SplitLine[]>(() => [newSplitLine()]);
+  const [adjustedBalance, setAdjustedBalance] = useState(
+    transaction?.type === "adjustment" && initialAccountEntry
+      ? String(initialAccountEntry.amount)
+      : "",
+  );
+  const [fundingBucketId, setFundingBucketId] = useState(
+    transaction?.entries.find((entry) => entry.fundingBucketId)?.fundingBucketId ?? "",
+  );
+  const [isSalary, setIsSalary] = useState(
+    transaction?.type === "income" &&
+      transaction.entries.some((entry) => entry.categoryName === "Salary"),
+  );
+  const [lines, setLines] = useState<SplitLine[]>(() => editableEntries(transaction));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -247,10 +302,12 @@ export function AddTransactionDrawer({
   }
 
   function resetForm() {
+    const now = localDateTimeValue();
     setType(defaultType);
     setTitle("");
     setPayee("");
     setNote("");
+    setOccurredAt(now);
     setAccountId("");
     setDestinationAccountId("");
     setTransferAmount("");
@@ -259,9 +316,51 @@ export function AddTransactionDrawer({
     setAdjustedBalance("");
     setFundingBucketId("");
     setIsSalary(false);
-    setBudgetMonth(activityMonth);
+    setBudgetMonth(now.slice(0, 7));
     setLines([newSplitLine()]);
     setSubmitError("");
+  }
+
+  function populateEditForm() {
+    if (!transaction) return;
+    const sourceEntry = transaction.entries.find(
+      (entry) => entry.amount < 0 && entry.memo !== "Transfer fee",
+    );
+    const destinationEntry = transaction.entries.find((entry) => entry.amount > 0);
+    const accountEntry = transaction.entries[0];
+
+    setType(transaction.type);
+    setTitle(transaction.title);
+    setPayee(transaction.payee ?? "");
+    setNote(transaction.note ?? "");
+    setOccurredAt(localDateTimeValue(transaction.occurredAt));
+    setBudgetMonth(linkedBudgetMonth(transaction));
+    setAccountId(
+      transaction.type === "transfer"
+        ? (sourceEntry?.accountId ?? "")
+        : (accountEntry?.accountId ?? ""),
+    );
+    setDestinationAccountId(destinationEntry?.accountId ?? "");
+    setTransferAmount(destinationEntry ? String(destinationEntry.amount) : "");
+    setTransferFee(transaction.transferFee ? String(transaction.transferFee) : "");
+    setFeeDeducted(false);
+    setAdjustedBalance(
+      transaction.type === "adjustment" && accountEntry ? String(accountEntry.amount) : "",
+    );
+    setFundingBucketId(
+      transaction.entries.find((entry) => entry.fundingBucketId)?.fundingBucketId ?? "",
+    );
+    setIsSalary(
+      transaction.type === "income" &&
+        transaction.entries.some((entry) => entry.categoryName === "Salary"),
+    );
+    setLines(editableEntries(transaction));
+    setSubmitError("");
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen && transaction) populateEditForm();
+    setOpen(nextOpen);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -291,10 +390,16 @@ export function AddTransactionDrawer({
     try {
       const occurredAtIso = new Date(occurredAt).toISOString();
       const clientRequestId = createClientRequestId();
+      const status = transaction?.status ?? "cleared";
+      const parentTransactionId = transaction?.parentTransactionId ?? null;
+      let payload: Record<string, unknown>;
 
       if (type === "transfer") {
         const amount = Number(transferAmount);
         const fee = Number(transferFee || 0);
+        const existingFeeEntry = transaction?.entries.find(
+          (entry) => entry.memo === "Transfer fee",
+        );
         if (!destinationAccountId || destinationAccountId === accountId) {
           throw new Error("Choose a different destination account.");
         }
@@ -306,81 +411,89 @@ export function AddTransactionDrawer({
         const feeCategory = categories.find(
           (category) => category.kind === "expense" && category.name === "Fees",
         );
-        await apiFetch("/api/transactions", {
-          method: "POST",
-          body: JSON.stringify({
-            clientRequestId,
-            type,
-            status: "cleared",
-            occurredAt: occurredAtIso,
-            title: title || "Account transfer",
-            payee: null,
-            note: note || null,
-            parentTransactionId: null,
-            createFundingBucket: null,
-            entries: [
-              {
-                accountId,
-                amount: -principal,
-                categoryId: null,
-                budgetItemId: null,
-                fundingBucketId: null,
-                memo: "Transfer out",
-              },
-              {
-                accountId: destinationAccountId,
-                amount: principal,
-                categoryId: null,
-                budgetItemId: null,
-                fundingBucketId: null,
-                memo: "Transfer in",
-              },
-              ...(fee > 0
-                ? [
-                    {
-                      accountId,
-                      amount: -fee,
-                      categoryId: feeCategory?.id ?? null,
-                      budgetItemId: null,
-                      fundingBucketId: fundingBucketId || null,
-                      memo: "Transfer fee",
-                    },
-                  ]
-                : []),
-            ],
-          }),
-        });
+        payload = {
+          clientRequestId,
+          type,
+          status,
+          occurredAt: occurredAtIso,
+          title: title || "Account transfer",
+          payee: null,
+          note: note || null,
+          parentTransactionId,
+          createFundingBucket: null,
+          entries: [
+            {
+              accountId,
+              amount: -principal,
+              categoryId: null,
+              budgetItemId: null,
+              fundingBucketId: null,
+              memo: "Transfer out",
+            },
+            {
+              accountId: destinationAccountId,
+              amount: principal,
+              categoryId: null,
+              budgetItemId: null,
+              fundingBucketId: null,
+              memo: "Transfer in",
+            },
+            ...(fee > 0
+              ? [
+                  {
+                    accountId,
+                    amount: -fee,
+                    categoryId: feeCategory?.id ?? existingFeeEntry?.categoryId ?? null,
+                    budgetItemId: existingFeeEntry?.budgetItemId ?? null,
+                    fundingBucketId: fundingBucketId || null,
+                    memo: "Transfer fee",
+                  },
+                ]
+              : []),
+          ],
+        };
       } else if (type === "adjustment") {
         if (!selectedAccount) throw new Error("Choose the account you reconciled.");
         const targetBalance = Number(adjustedBalance);
-        if (!Number.isFinite(targetBalance)) throw new Error("Enter the verified account balance.");
-        const difference = Math.round((targetBalance - selectedAccount.balance) * 100) / 100;
-        if (difference === 0) throw new Error("This account already has that balance.");
+        if (!Number.isFinite(targetBalance)) {
+          throw new Error(
+            editing ? "Enter a valid adjustment amount." : "Enter the verified account balance.",
+          );
+        }
+        const difference = editing
+          ? Math.round(targetBalance * 100) / 100
+          : Math.round((targetBalance - selectedAccount.balance) * 100) / 100;
+        if (difference === 0) {
+          throw new Error(
+            editing
+              ? "The adjustment amount cannot be zero."
+              : "This account already has that balance.",
+          );
+        }
 
-        await apiFetch("/api/transactions", {
-          method: "POST",
-          body: JSON.stringify({
-            clientRequestId,
-            type,
-            status: "cleared",
-            occurredAt: occurredAtIso,
-            title: title || "Balance adjustment",
-            payee: null,
-            note: note || null,
-            parentTransactionId: null,
-            createFundingBucket: null,
-            entries: [
-              {
-                accountId,
-                amount: difference,
-                categoryId: null,
-                budgetItemId: null,
-                fundingBucketId: null,
-                memo: `Reconciled from ${formatMoney(selectedAccount.balance, selectedAccount.currency)} to ${formatMoney(targetBalance, selectedAccount.currency)}`,
-              },
-            ],
-          }),
-        });
+        payload = {
+          clientRequestId,
+          type,
+          status,
+          occurredAt: occurredAtIso,
+          title: title || "Balance adjustment",
+          payee: null,
+          note: note || null,
+          parentTransactionId,
+          createFundingBucket: null,
+          entries: [
+            {
+              accountId,
+              amount: difference,
+              categoryId: null,
+              budgetItemId: null,
+              fundingBucketId: null,
+              memo: editing
+                ? (transaction?.entries[0]?.memo ?? "Balance adjustment")
+                : `Reconciled from ${formatMoney(selectedAccount.balance, selectedAccount.currency)} to ${formatMoney(targetBalance, selectedAccount.currency)}`,
+            },
+          ],
+        };
       } else {
         const validLines = lines.filter((line) => Number(line.amount) > 0);
         if (validLines.length === 0) throw new Error("Enter at least one amount.");
@@ -408,46 +521,60 @@ export function AddTransactionDrawer({
               : type === "refund"
                 ? "Refund"
                 : "Expense");
+        payload = {
+          clientRequestId,
+          type,
+          status,
+          occurredAt: occurredAtIso,
+          title: effectiveTitle,
+          payee: payee || null,
+          note: note || null,
+          parentTransactionId,
+          createFundingBucket:
+            type === "income" && !isHistoricalActivity
+              ? {
+                  name: salaryEntry
+                    ? `${new Intl.DateTimeFormat("en", {
+                        month: "long",
+                        year: "numeric",
+                      }).format(new Date(occurredAt))} salary`
+                    : effectiveTitle,
+                  type: salaryEntry
+                    ? "salary"
+                    : (fundingTypeByCategory[
+                        selectedIncomeCategory?.name.toLowerCase() as keyof typeof fundingTypeByCategory
+                      ] ?? "other"),
+                  currency: activeCurrency,
+                  periodStart: occurredAt.slice(0, 7) + "-01",
+                  periodEnd: null,
+                }
+              : null,
+          entries: validLines.map((line) => ({
+            accountId,
+            amount: Number(line.amount) * (type === "expense" ? -1 : 1),
+            categoryId: salaryEntry ? (salaryCategory?.id ?? null) : line.categoryId || null,
+            budgetItemId:
+              type === "expense" || type === "refund" ? line.budgetItemId || null : null,
+            fundingBucketId: isHistoricalActivity ? null : fundingBucketId || null,
+            memo: line.memo || null,
+          })),
+        };
+      }
+
+      if (transaction) {
+        const {
+          clientRequestId: _clientRequestId,
+          createFundingBucket: _createFundingBucket,
+          ...update
+        } = payload;
+        await apiFetch(`/api/transactions/${transaction.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ ...update, version: transaction.version }),
+        });
+      } else {
         await apiFetch("/api/transactions", {
           method: "POST",
-          body: JSON.stringify({
-            clientRequestId,
-            type,
-            status: "cleared",
-            occurredAt: occurredAtIso,
-            title: effectiveTitle,
-            payee: payee || null,
-            note: note || null,
-            parentTransactionId: null,
-            createFundingBucket:
-              type === "income" && !isHistoricalActivity
-                ? {
-                    name: salaryEntry
-                      ? `${new Intl.DateTimeFormat("en", {
-                          month: "long",
-                          year: "numeric",
-                        }).format(new Date(occurredAt))} salary`
-                      : effectiveTitle,
-                    type: salaryEntry
-                      ? "salary"
-                      : (fundingTypeByCategory[
-                          selectedIncomeCategory?.name.toLowerCase() as keyof typeof fundingTypeByCategory
-                        ] ?? "other"),
-                    currency: activeCurrency,
-                    periodStart: occurredAt.slice(0, 7) + "-01",
-                    periodEnd: null,
-                  }
-                : null,
-            entries: validLines.map((line) => ({
-              accountId,
-              amount: Number(line.amount) * (type === "expense" ? -1 : 1),
-              categoryId: salaryEntry ? (salaryCategory?.id ?? null) : line.categoryId || null,
-              budgetItemId:
-                type === "expense" || type === "refund" ? line.budgetItemId || null : null,
-              fundingBucketId: isHistoricalActivity ? null : fundingBucketId || null,
-              memo: line.memo || null,
-            })),
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
@@ -458,14 +585,17 @@ export function AddTransactionDrawer({
         mutate("/api/funding-buckets"),
       ]);
       toast.success(
-        type === "transfer"
-          ? "Transfer recorded."
-          : type === "adjustment"
-            ? "Balance reconciled."
-            : "Activity recorded.",
+        editing
+          ? "Activity updated."
+          : type === "transfer"
+            ? "Transfer recorded."
+            : type === "adjustment"
+              ? "Balance reconciled."
+              : "Activity recorded.",
       );
-      resetForm();
+      if (!editing) resetForm();
       setOpen(false);
+      onSaved?.();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not save this activity.";
       setSubmitError(message);
@@ -476,11 +606,11 @@ export function AddTransactionDrawer({
   }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
+    <Drawer open={open} onOpenChange={handleOpenChange} showSwipeHandle>
       <DrawerTrigger
         render={
           trigger ? (
-            <span />
+            <span className="flex flex-1" />
           ) : (
             <Button size="icon-lg" aria-label="Add activity">
               <PlusIcon />
@@ -494,8 +624,12 @@ export function AddTransactionDrawer({
         <DrawerHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-0.5">
-              <DrawerTitle>Record activity</DrawerTitle>
-              <DrawerDescription>One focused flow updates every linked balance.</DrawerDescription>
+              <DrawerTitle>{editing ? "Edit activity" : "Record activity"}</DrawerTitle>
+              <DrawerDescription>
+                {editing
+                  ? "Update the activity and every linked balance together."
+                  : "One focused flow updates every linked balance."}
+              </DrawerDescription>
             </div>
             <Badge variant="secondary">{activeCurrency}</Badge>
           </div>
@@ -507,6 +641,7 @@ export function AddTransactionDrawer({
               <Field>
                 <FieldLabel>What happened?</FieldLabel>
                 <ToggleGroup
+                  disabled={editing}
                   value={[type]}
                   onValueChange={(values) => {
                     const nextType = values[0] as QuickTransactionType | undefined;
@@ -538,6 +673,11 @@ export function AddTransactionDrawer({
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
+                {editing ? (
+                  <FieldDescription>
+                    Activity type cannot be changed after creation.
+                  </FieldDescription>
+                ) : null}
               </Field>
 
               <Field>
@@ -575,10 +715,10 @@ export function AddTransactionDrawer({
                     <FieldDescription>Add an account before recording activity.</FieldDescription>
                   ) : null}
                 </Field>
-                <Field className="min-w-0">
+                <Field className="min-w-0 overflow-hidden">
                   <FieldLabel htmlFor="activity-date">Date and time</FieldLabel>
                   <Input
-                    className="overflow-hidden"
+                    className="min-w-0 max-w-full overflow-hidden"
                     id="activity-date"
                     name="occurredAt"
                     type="datetime-local"
@@ -688,7 +828,9 @@ export function AddTransactionDrawer({
                 </div>
               ) : type === "adjustment" ? (
                 <Field>
-                  <FieldLabel htmlFor="adjusted-balance">Verified balance</FieldLabel>
+                  <FieldLabel htmlFor="adjusted-balance">
+                    {editing ? "Adjustment amount" : "Verified balance"}
+                  </FieldLabel>
                   <MoneyInput
                     id="adjusted-balance"
                     name="adjustedBalance"
@@ -696,13 +838,17 @@ export function AddTransactionDrawer({
                     step="0.01"
                     value={adjustedBalance}
                     onChange={(event) => setAdjustedBalance(event.target.value)}
-                    placeholder={selectedAccount ? String(selectedAccount.balance) : "0.00"}
+                    placeholder={
+                      editing ? "0.00" : selectedAccount ? String(selectedAccount.balance) : "0.00"
+                    }
                     required
                   />
                   <FieldDescription>
-                    {selectedAccount
-                      ? `Ledger balance: ${formatMoney(selectedAccount.balance, selectedAccount.currency)}. Only the difference is recorded.`
-                      : "Choose an account, then enter the balance you verified."}
+                    {editing
+                      ? "Enter the signed ledger correction. Use a negative amount to reduce the balance."
+                      : selectedAccount
+                        ? `Ledger balance: ${formatMoney(selectedAccount.balance, selectedAccount.currency)}. Only the difference is recorded.`
+                        : "Choose an account, then enter the balance you verified."}
                   </FieldDescription>
                 </Field>
               ) : (
@@ -727,12 +873,13 @@ export function AddTransactionDrawer({
 
                   <div className="flex flex-col gap-4">
                     {type === "expense" || type === "refund" ? (
-                      <Field>
+                      <Field className="min-w-0 overflow-hidden">
                         <FieldLabel htmlFor="budget-period">Budget period</FieldLabel>
                         <Input
                           id="budget-period"
                           name="budgetPeriod"
                           type="month"
+                          className="min-w-0 max-w-full overflow-hidden"
                           value={budgetMonth}
                           onChange={(event) => {
                             setBudgetMonth(event.target.value);
@@ -926,10 +1073,12 @@ export function AddTransactionDrawer({
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <Spinner data-icon="inline-start" />
+              ) : editing ? (
+                <PencilIcon data-icon="inline-start" />
               ) : (
                 <PlusIcon data-icon="inline-start" />
               )}
-              {isSubmitting ? "Saving…" : "Save activity"}
+              {isSubmitting ? "Saving…" : editing ? "Save changes" : "Save activity"}
             </Button>
           </DrawerFooter>
         </form>

@@ -20,7 +20,15 @@ import { useSWRConfig } from "swr";
 
 import { apiFetch } from "@/lib/client-api";
 
-export function DeleteTransactionButton({ transactionId }: { transactionId: string }) {
+export function DeleteTransactionButton({
+  transactionId,
+  transactionTitle,
+  onDeleted,
+}: {
+  transactionId: string;
+  transactionTitle: string;
+  onDeleted?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { mutate } = useSWRConfig();
@@ -37,6 +45,7 @@ export function DeleteTransactionButton({ transactionId }: { transactionId: stri
       ]);
       toast.success("Activity removed.");
       setOpen(false);
+      onDeleted?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not remove this activity.");
     } finally {
@@ -47,13 +56,14 @@ export function DeleteTransactionButton({ transactionId }: { transactionId: stri
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label="Delete activity" />}
+        render={<Button type="button" variant="destructive" className="flex-1" />}
       >
-        <Trash2Icon />
+        <Trash2Icon data-icon="inline-start" />
+        Delete
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remove this activity?</AlertDialogTitle>
+          <AlertDialogTitle>Delete “{transactionTitle}”?</AlertDialogTitle>
           <AlertDialogDescription>
             Account balances and linked budgets will be recalculated. The record remains recoverable
             in the ledger.

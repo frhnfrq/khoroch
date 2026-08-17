@@ -129,6 +129,35 @@
   html {
     @apply font-sans;
   }
+
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value,
+  input[type="month"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    height: 2.5rem;
+    min-height: 2.5rem;
+    overflow: hidden;
+    line-height: 1.25rem;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

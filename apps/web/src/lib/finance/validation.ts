@@ -75,84 +75,98 @@ export const transactionEntrySchema = z.object({
     .transform((value) => value || null),
 });
 
-export const createTransactionSchema = z
-  .object({
-    clientRequestId: z
-      .string()
-      .trim()
-      .min(8)
-      .max(128)
-      .nullish()
-      .transform((value) => value || null),
-    type: z.enum(transactionTypes),
-    status: z.enum(transactionStatuses).default("cleared"),
-    occurredAt: z.iso.datetime({ offset: true }),
-    title: z.string().trim().min(1).max(120),
-    payee: z
-      .string()
-      .trim()
-      .max(120)
-      .nullish()
-      .transform((value) => value || null),
-    note: z
-      .string()
-      .trim()
-      .max(1_000)
-      .nullish()
-      .transform((value) => value || null),
-    parentTransactionId: optionalIdSchema,
-    createFundingBucket: z
-      .object({
-        name: z.string().trim().min(1).max(100),
-        type: z.enum(fundingBucketTypes),
-        currency: z.enum(supportedCurrencies).default("BDT"),
-        periodStart: z.iso
-          .date()
-          .nullish()
-          .transform((value) => value ?? null),
-        periodEnd: z.iso
-          .date()
-          .nullish()
-          .transform((value) => value ?? null),
-      })
-      .nullish()
-      .transform((value) => value ?? null),
-    entries: z.array(transactionEntrySchema).min(1).max(30),
-  })
-  .superRefine((value, context) => {
-    const amounts = value.entries.map((entry) => entry.amount);
-    const hasPositive = amounts.some((amount) => amount > 0);
-    const hasNegative = amounts.some((amount) => amount < 0);
+const transactionInputSchema = z.object({
+  clientRequestId: z
+    .string()
+    .trim()
+    .min(8)
+    .max(128)
+    .nullish()
+    .transform((value) => value || null),
+  type: z.enum(transactionTypes),
+  status: z.enum(transactionStatuses).default("cleared"),
+  occurredAt: z.iso.datetime({ offset: true }),
+  title: z.string().trim().min(1).max(120),
+  payee: z
+    .string()
+    .trim()
+    .max(120)
+    .nullish()
+    .transform((value) => value || null),
+  note: z
+    .string()
+    .trim()
+    .max(1_000)
+    .nullish()
+    .transform((value) => value || null),
+  parentTransactionId: optionalIdSchema,
+  createFundingBucket: z
+    .object({
+      name: z.string().trim().min(1).max(100),
+      type: z.enum(fundingBucketTypes),
+      currency: z.enum(supportedCurrencies).default("BDT"),
+      periodStart: z.iso
+        .date()
+        .nullish()
+        .transform((value) => value ?? null),
+      periodEnd: z.iso
+        .date()
+        .nullish()
+        .transform((value) => value ?? null),
+    })
+    .nullish()
+    .transform((value) => value ?? null),
+  entries: z.array(transactionEntrySchema).min(1).max(30),
+});
 
-    if (value.type === "expense" && hasPositive) {
-      context.addIssue({
-        code: "custom",
-        path: ["entries"],
-        message: "Expenses must reduce an account",
-      });
-    }
-    if ((value.type === "income" || value.type === "refund") && hasNegative) {
-      context.addIssue({
-        code: "custom",
-        path: ["entries"],
-        message: "Income and refunds must increase an account",
-      });
-    }
-    if (value.type === "transfer" && (!hasPositive || !hasNegative)) {
-      context.addIssue({
-        code: "custom",
-        path: ["entries"],
-        message: "Transfers need at least one source and one destination entry",
-      });
-    }
-    if (value.createFundingBucket && value.type !== "income") {
-      context.addIssue({
-        code: "custom",
-        path: ["createFundingBucket"],
-        message: "Only income can create a funding bucket",
-      });
-    }
-  });
+function refineTransaction(
+  value: {
+    type: (typeof transactionTypes)[number];
+    entries: Array<{ amount: number }>;
+    createFundingBucket?: unknown;
+  },
+  context: z.RefinementCtx,
+) {
+  const amounts = value.entries.map((entry) => entry.amount);
+  const hasPositive = amounts.some((amount) => amount > 0);
+  const hasNegative = amounts.some((amount) => amount < 0);
+
+  if (value.type === "expense" && hasPositive) {
+    context.addIssue({
+      code: "custom",
+      path: ["entries"],
+      message: "Expenses must reduce an account",
+    });
+  }
+  if ((value.type === "income" || value.type === "refund") && hasNegative) {
+    context.addIssue({
+      code: "custom",
+      path: ["entries"],
+      message: "Income and refunds must increase an account",
+    });
+  }
+  if (value.type === "transfer" && (!hasPositive || !hasNegative)) {
+    context.addIssue({
+      code: "custom",
+      path: ["entries"],
+      message: "Transfers need at least one source and one destination entry",
+    });
+  }
+  if (value.createFundingBucket && value.type !== "income") {
+    context.addIssue({
+      code: "custom",
+      path: ["createFundingBucket"],
+      message: "Only income can create a funding bucket",
+    });
+  }
+}
+
+export const createTransactionSchema = transactionInputSchema.superRefine(refineTransaction);
+
+export const updateTransactionSchema = transactionInputSchema
+  .omit({ clientRequestId: true, createFundingBucket: true })
+  .extend({ version: z.number().int().positive() })
+  .superRefine(refineTransaction);
 
 export const transactionFiltersSchema = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
@@ -272,6 +286,7 @@ export const createFundingBucketSchema = z
 
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
+export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
 export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
 export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;

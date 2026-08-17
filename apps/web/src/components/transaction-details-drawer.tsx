@@ -14,14 +14,17 @@ import {
   Drawer,
   DrawerContent,
   DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from "@khoroch/ui/components/drawer";
 import { Separator } from "@khoroch/ui/components/separator";
-import { EyeIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { EyeIcon, PencilIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
+import { AddTransactionDrawer } from "@/components/add-transaction-drawer";
+import { DeleteTransactionButton } from "@/components/delete-transaction-button";
 import { formatMoney } from "@/lib/finance/format";
 import type { TransactionEntryView, TransactionView } from "@/lib/finance/types";
 
@@ -112,6 +115,7 @@ export function TransactionDetailsDrawer({
   transaction: TransactionView;
   trigger?: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   const amountPrefix =
     transaction.type === "expense"
       ? "−"
@@ -120,7 +124,7 @@ export function TransactionDetailsDrawer({
         : "";
 
   return (
-    <Drawer showSwipeHandle>
+    <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
       <DrawerTrigger
         render={
           trigger ? (
@@ -220,6 +224,22 @@ export function TransactionDetailsDrawer({
             ))}
           </section>
         </div>
+        <DrawerFooter className="flex-row border-t bg-popover pt-4">
+          <AddTransactionDrawer
+            transaction={transaction}
+            trigger={
+              <Button type="button" variant="outline" className="w-full">
+                <PencilIcon data-icon="inline-start" />
+                Edit
+              </Button>
+            }
+          />
+          <DeleteTransactionButton
+            transactionId={transaction.id}
+            transactionTitle={transaction.title}
+            onDeleted={() => setOpen(false)}
+          />
+        </DrawerFooter>
       </DrawerContent>
     </Drawer>
   );
