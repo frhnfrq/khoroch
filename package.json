@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "test": "tsx --tsconfig apps/web/tsconfig.json --test 'apps/web/src/**/*.test.ts'",
     "check-types": "turbo run check-types",
     "dev:web": "turbo run dev -F web",
     "db:push": "turbo run db:push -F @khoroch/db",
