@@ -29,6 +29,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { MoneyInput } from "@/components/money-input";
+import { AiQuickEntryDrawer } from "@/components/ai-quick-entry-drawer";
 import { SearchPicker, type SearchPickerItem } from "@/components/search-picker";
 import { TransactionDetailsDrawer } from "@/components/transaction-details-drawer";
 import { TransactionRow } from "@/components/transaction-row";
@@ -149,11 +150,14 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
-        <p className="text-sm text-muted-foreground">
-          Every account movement in one searchable ledger.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
+          <p className="text-sm text-muted-foreground">
+            Every account movement in one searchable ledger.
+          </p>
+        </div>
+        <AiQuickEntryDrawer />
       </div>
 
       <div className="flex gap-2">
