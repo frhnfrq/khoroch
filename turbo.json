@@ -8,7 +8,7 @@
       "env": [
         "DATABASE_URL",
         "CLERK_SECRET_KEY",
-        "GEMINI_API_KEY",
+        "AI_GATEWAY_API_KEY",
         "AI_TRANSACTION_MODEL",
         "CORS_ORIGIN",
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"

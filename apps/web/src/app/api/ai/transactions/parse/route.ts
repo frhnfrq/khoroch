@@ -54,17 +54,17 @@ export async function POST(request: Request) {
       return Response.json({ error: "Choose an active default account" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = process.env.AI_GATEWAY_API_KEY?.trim();
     if (!apiKey) {
       return Response.json(
         {
           error:
-            "AI quick entry is not configured yet. Add GEMINI_API_KEY to the web app environment.",
+            "AI quick entry is not configured yet. Add AI_GATEWAY_API_KEY to the web app environment.",
         },
         { status: 503 },
       );
     }
-    const modelId = process.env.AI_TRANSACTION_MODEL?.trim() || "gemma-4-31b-it";
+    const modelId = process.env.AI_TRANSACTION_MODEL?.trim() || "google/gemma-4-31b-it";
 
     const extractedEntries = await extractAiTransactions({
       apiKey,

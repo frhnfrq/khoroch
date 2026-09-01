@@ -1,5 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
+import { createGateway, generateText, Output } from "ai";
 
 import { aiExtractionSchema } from "@/lib/finance/ai-quick-entry";
 
@@ -142,11 +141,8 @@ export async function extractAiTransactions({
   categoryOptions: CategoryOption[];
   defaultAccountName: string;
 }) {
-  const google = createGoogleGenerativeAI({ apiKey });
-  const model = wrapLanguageModel({
-    model: google(modelId),
-    middleware: extractJsonMiddleware(),
-  });
+  const gateway = createGateway({ apiKey });
+  const model = gateway(modelId);
   const chunks = splitAiTransactionNotes(promptInput.text);
   const results = await mapWithConcurrency(chunks, 4, (chunk) =>
     generateText({
@@ -156,8 +152,8 @@ export async function extractAiTransactions({
         name: "finance_activity_extraction",
         description: "Expenses, income, and transfers extracted from informal personal notes",
       }),
-      providerOptions: { google: { structuredOutputs: false } },
       temperature: 0,
+      reasoning: "none",
       maxRetries: 2,
       timeout: 120_000,
       prompt: buildAiTransactionPrompt({
