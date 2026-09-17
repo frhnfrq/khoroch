@@ -50,6 +50,7 @@ export type BudgetItemView = BudgetItem & {
 export type BudgetView = Budget & {
   plannedAmount: number;
   spentAmount: number;
+  /** Unfinished planned spending; overspending on other items does not reduce it. */
   remainingAmount: number;
   items: BudgetItemView[];
 };

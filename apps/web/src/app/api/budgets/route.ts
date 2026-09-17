@@ -17,6 +17,7 @@ import {
   unauthorized,
 } from "@/lib/finance/http";
 import { createBudgetSchema } from "@/lib/finance/validation";
+import { getRemainingPlannedAmount } from "@/lib/finance/budget-remaining";
 import type { BudgetItemView, BudgetView } from "@/lib/finance/types";
 
 function monthBounds(month: string) {
@@ -157,7 +158,7 @@ export async function GET(request: Request) {
         ...budget,
         plannedAmount,
         spentAmount,
-        remainingAmount: plannedAmount - spentAmount,
+        remainingAmount: getRemainingPlannedAmount(rolledItems),
         items: rolledItems,
       };
     });

@@ -155,7 +155,9 @@ export default function BudgetsPage() {
           <section className="flex flex-col gap-5 rounded-3xl bg-primary p-5 text-primary-foreground sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs text-primary-foreground/70">Remaining in {budget.name}</p>
+                <p className="text-xs text-primary-foreground/70">
+                  Remaining planned spending in {budget.name}
+                </p>
                 <p className="mt-1 text-3xl font-semibold tracking-tight">
                   {formatMoney(budget.remainingAmount, budget.currency)}
                 </p>
